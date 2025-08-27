@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocal - Chamada de Áudio P2P</title>
+    
+    <!-- Importando a fonte 'Inter' para um look moderno -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+    <!-- PeerJS -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body>
+    <div class="background-animation"></div>
+
+    <main class="card">
+        <!-- Seção de Conexão (Setup) -->
+        <section id="setup-section" class="view active">
+            <header>
+                <h1>Vocal</h1>
+                <p class="subtitle">Chamadas de áudio simples e seguras.</p>
+            </header>
+            
+            <div class="actions">
+                <button id="create-room-btn" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 3.41l3.02-3.02c.61-.6.44-1.73-.39-2.1l-2.09-.94c-.45-.2-.98-.06-1.29.25l-1.37 1.37zM4.11 9.38l1.37 1.37c.31.31.74.45 1.29.25l2.09-.94c.83-.37 1-1.5.39-2.1L6.23 5.9c-.83-.38-1.87.12-1.87 1v2.48zM12 2a10 10 0 0 0-9.94 9h0a10 10 0 0 0 9.94 9h0a10 10 0 0 0 9.94-9h0A10 10 0 0 0 12 2z"></path></svg>
+                    Criar Nova Sala
+                </button>
+                <div class="separator">ou</div>
+                <div class="join-group">
+                    <input type="text" id="room-code-input" placeholder="Cole o código da sala" maxlength="5">
+                    <button id="join-room-btn" class="btn">Entrar</button>
+                </div>
+            </div>
+            <p id="error-message" class="error"></p>
+        </section>
+
+        <!-- Seção da Chamada -->
+        <section id="call-section" class="view">
+             <header>
+                <h1>Em chamada</h1>
+            </header>
+            
+            <div class="room-info">
+                <span>Código da Sala:</span>
+                <div class="code-display">
+                    <code id="room-id-display"></code>
+                    <button id="copy-room-id-btn" title="Copiar código">
+                        <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        <span id="copy-feedback">Copiado!</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="status" class="status-waiting">
+                <p id="status-message">Aguardando outro participante</p>
+                <div class="dots">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+
+            <audio id="remote-audio" autoplay></audio>
+
+            <button id="hang-up-btn" class="btn btn-hangup">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                Desligar
+            </button>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
