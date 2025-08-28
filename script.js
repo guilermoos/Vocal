@@ -11,19 +11,24 @@ const statusDiv = document.getElementById('status');
 const statusMessage = document.getElementById('status-message');
 const errorMessage = document.getElementById('error-message');
 const copyRoomIdBtn = document.getElementById('copy-room-id-btn');
+// NOVO: Seleção dos elementos de mudo
+const toggleMuteBtn = document.getElementById('toggle-mute-btn');
+const muteBtnText = document.getElementById('mute-btn-text');
 
+
+// --- Variáveis de Estado ---
 let peer;
 let localStream;
 let currentCall;
+let isMuted = false; // NOVO: Controla o estado do mudo
+
 
 // --- Funções Auxiliares ---
 
-// Gera um código aleatório de 5 dígitos para a sala
 function generateRandomCode() {
     return Math.floor(10000 + Math.random() * 90000).toString();
 }
 
-// Inicia o acesso ao microfone do usuário
 async function startMedia() {
     try {
         if (!localStream) {
@@ -32,13 +37,13 @@ async function startMedia() {
     } catch (err) {
         console.error('Falha ao obter stream de áudio', err);
         errorMessage.innerText = 'Permissão de microfone é necessária.';
-        throw err; // Lança o erro para interromper a execução
+        throw err;
     }
 }
 
+
 // --- Lógica do PeerJS ---
 
-// Inicializa a conexão Peer e configura os listeners de eventos
 function initializePeer(peerId) {
     peer = new Peer(peerId);
 
@@ -54,7 +59,7 @@ function initializePeer(peerId) {
         }
         
         console.log('Recebendo chamada...');
-        call.answer(localStream); // Atende a chamada com nosso áudio
+        call.answer(localStream);
         setupCallHandlers(call);
     });
 
@@ -65,7 +70,6 @@ function initializePeer(peerId) {
     });
 }
 
-// Configura os handlers para uma chamada (tanto para quem liga quanto para quem recebe)
 function setupCallHandlers(call) {
     currentCall = call;
 
@@ -93,9 +97,7 @@ createRoomBtn.addEventListener('click', async () => {
         await startMedia();
         const roomCode = generateRandomCode();
         initializePeer(roomCode);
-    } catch (error) {
-        // O erro já é tratado em startMedia
-    }
+    } catch (error) {}
 });
 
 joinRoomBtn.addEventListener('click', async () => {
@@ -108,7 +110,6 @@ joinRoomBtn.addEventListener('click', async () => {
     
     try {
         await startMedia();
-        // Inicializa um peer anônimo
         peer = new Peer(); 
         peer.on('open', () => {
             const call = peer.call(roomCode, localStream);
@@ -120,9 +121,7 @@ joinRoomBtn.addEventListener('click', async () => {
             errorMessage.innerText = 'Não foi possível conectar. Verifique o código.';
             showSetupView();
        });
-    } catch (error) {
-        // O erro já é tratado em startMedia
-    }
+    } catch (error) {}
 });
 
 hangUpBtn.addEventListener('click', endCall);
@@ -136,6 +135,25 @@ copyRoomIdBtn.addEventListener('click', () => {
     }).catch(err => console.error('Falha ao copiar:', err));
 });
 
+// NOVO: Lógica do botão de mutar
+toggleMuteBtn.addEventListener('click', () => {
+    isMuted = !isMuted;
+    
+    // Ativa ou desativa a faixa de áudio no stream local
+    if (localStream) {
+        localStream.getAudioTracks()[0].enabled = !isMuted;
+    }
+    
+    // Atualiza a UI do botão
+    updateMuteButtonUI();
+});
+
+// NOVO: Função para atualizar a aparência do botão de mudo
+function updateMuteButtonUI() {
+    toggleMuteBtn.classList.toggle('muted', isMuted);
+    muteBtnText.innerText = isMuted ? 'Desmutar' : 'Mutar';
+}
+
 
 // --- Funções de Gerenciamento de UI ---
 
@@ -144,7 +162,6 @@ function endCall() {
         currentCall.close();
         currentCall = null;
     }
-    // peer.destroy() pode ser muito agressivo, desconectar é mais suave
     if (peer) {
         peer.disconnect();
         peer.destroy();
@@ -161,6 +178,9 @@ function showView(viewToShow) {
 
 function showCallView(roomId) {
     roomIdDisplay.innerText = roomId;
+    // Reseta o estado do botão de mudo ao iniciar uma nova chamada
+    isMuted = false;
+    updateMuteButtonUI();
     showView(callSection);
 }
 
