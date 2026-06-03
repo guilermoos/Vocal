@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vocal-v16';
+const CACHE_NAME = 'vocal-v20';
 const ASSETS = [
   './',
   './index.html',
