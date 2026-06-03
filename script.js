@@ -22,8 +22,120 @@ let localStream;
 let currentCall;
 let isMuted = false; // NOVO: Controla o estado do mudo
 
+// --- Estado das Notificações ---
+let audioCtx;
+let incomingInterval = null;
+let titleBlinkInterval = null;
+const ORIGINAL_TITLE = document.title;
+
 
 // --- Funções Auxiliares ---
+
+function getAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    return audioCtx;
+}
+
+function playNote(freq, startTime, duration, startGain = 0.2) {
+    try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(startGain, startTime + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    } catch (err) {
+        console.error('Erro ao reproduzir nota:', err);
+    }
+}
+
+function playIncomingRing() {
+    try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        playNote(440, now, 0.12, 0.15);
+        playNote(440, now + 0.2, 0.12, 0.15);
+    } catch (err) {
+        console.error('Erro ao tocar chamada recebida:', err);
+    }
+}
+
+function stopIncomingSound() {
+    if (incomingInterval) {
+        clearInterval(incomingInterval);
+        incomingInterval = null;
+    }
+}
+
+function playSound(type) {
+    try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        
+        if (type === 'incoming') {
+            stopIncomingSound();
+            playIncomingRing();
+            incomingInterval = setInterval(playIncomingRing, 1500);
+        } else if (type === 'connect') {
+            stopIncomingSound();
+            playNote(523.25, now, 0.15, 0.15); // C5
+            playNote(659.25, now + 0.08, 0.15, 0.15); // E5
+            playNote(783.99, now + 0.16, 0.3, 0.15); // G5
+        } else if (type === 'disconnect') {
+            stopIncomingSound();
+            
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.linearRampToValueAtTime(220, now + 0.25);
+            
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.15, now + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+            
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        }
+    } catch (err) {
+        console.error('Erro na função playSound:', err);
+    }
+}
+
+function startTitleBlink(message) {
+    if (titleBlinkInterval) clearInterval(titleBlinkInterval);
+    let showMsg = true;
+    document.title = message;
+    titleBlinkInterval = setInterval(() => {
+        showMsg = !showMsg;
+        document.title = showMsg ? message : ORIGINAL_TITLE;
+    }, 1000);
+}
+
+function stopTitleBlink() {
+    if (titleBlinkInterval) {
+        clearInterval(titleBlinkInterval);
+        titleBlinkInterval = null;
+    }
+    document.title = "Vocal";
+}
 
 function generateRandomCode() {
     return Math.floor(10000 + Math.random() * 90000).toString();
@@ -59,6 +171,8 @@ function initializePeer(peerId) {
         }
         
         console.log('Recebendo chamada...');
+        playSound('incoming');
+        startTitleBlink('🔔 Chamada entrando...');
         call.answer(localStream);
         setupCallHandlers(call);
     });
@@ -75,6 +189,8 @@ function setupCallHandlers(call) {
 
     call.on('stream', (remoteStream) => {
         console.log('Recebendo stream remoto.');
+        playSound('connect');
+        stopTitleBlink();
         statusDiv.classList.remove('status-waiting');
         statusDiv.classList.add('status-connected');
         statusMessage.innerText = 'Conectado!';
@@ -158,6 +274,8 @@ function updateMuteButtonUI() {
 // --- Funções de Gerenciamento de UI ---
 
 function endCall() {
+    playSound('disconnect');
+    stopTitleBlink();
     if (currentCall) {
         currentCall.close();
         currentCall = null;
@@ -182,6 +300,7 @@ function showCallView(roomId) {
     isMuted = false;
     updateMuteButtonUI();
     showView(callSection);
+    startTitleBlink('📞 Vocal');
 }
 
 function showSetupView() {
