@@ -72,11 +72,10 @@ header {
     box-shadow: 0 10px 25px -5px rgba(0, 170, 255, 0.15);
 }
 
-.logo-icon {
-    font-size: 32px !important;
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.logo-img {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
 }
 
 h1 {

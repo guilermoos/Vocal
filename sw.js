@@ -1,8 +1,9 @@
-const CACHE_NAME = 'vocal-v5';
+const CACHE_NAME = 'vocal-v6';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './icon-84.png',
   './icon-192.png',
   './icon-512.png',
   './style.css',
