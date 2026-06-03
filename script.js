@@ -13,15 +13,18 @@ const copyRoomIdBtn = document.getElementById('copy-room-id-btn');
 // NOVO: Seleção dos elementos de mudo
 const toggleMuteBtn = document.getElementById('toggle-mute-btn');
 const muteBtnText = document.getElementById('mute-btn-text');
+const userNameInput = document.getElementById('user-name-input');
 
 
 // --- Variáveis de Estado ---
 let peer;
 let localStream;
 let isMuted = false; // NOVO: Controla o estado do mudo
+let localName = '';
+let hadParticipantsConnected = false;
 
 // --- Estado Multi-party Mesh ---
-const peers = new Map(); // peerId -> { conn, call, stream, audioElement, listItemElement }
+const peers = new Map(); // peerId -> { conn, call, stream, audioElement, listItemElement, name }
 let isHost = false;
 const MAX_PARTICIPANTS = 8;
 
@@ -215,46 +218,52 @@ function initializePeer(peerId) {
     peer.on('connection', (conn) => {
         console.log('Host: Recebeu conexão de dados de:', conn.peer);
         
-        // Verificar limite de participantes (máximo de 8 no total)
-        if (peers.size + 1 >= MAX_PARTICIPANTS) {
-            console.log('Host: Sala cheia, rejeitando:', conn.peer);
-            conn.on('open', () => {
-                conn.send({ type: 'sala_cheia' });
-                setTimeout(() => conn.close(), 1000);
-            });
-            return;
-        }
-
-        conn.on('open', () => {
-            // Enviar lista de IDs já conectados
-            const connectedIds = Array.from(peers.keys());
-            conn.send({ type: 'peers_list', ids: connectedIds });
-
-            // Adicionar ao Map
-            if (!peers.has(conn.peer)) {
-                peers.set(conn.peer, { conn, call: null, stream: null });
-            } else {
-                peers.get(conn.peer).conn = conn;
-            }
-
-            // Notificar outros peers sobre o novo participante
-            peers.forEach((peerObj, pId) => {
-                if (pId !== conn.peer && peerObj.conn) {
-                    peerObj.conn.send({ type: 'novo_peer', id: conn.peer });
+        conn.on('data', (data) => {
+            if (data.type === 'join') {
+                const guestName = data.name || conn.peer.substring(0, 5);
+                console.log(`Host: Novo peer se juntou: ${guestName} (${conn.peer})`);
+                
+                // Verificar limite de participantes (máximo de 8 no total)
+                if (peers.size + 1 >= MAX_PARTICIPANTS) {
+                    console.log('Host: Sala cheia, rejeitando:', conn.peer);
+                    conn.send({ type: 'sala_cheia' });
+                    setTimeout(() => conn.close(), 1000);
+                    return;
                 }
-            });
-
-            addParticipantToList(conn.peer);
-            updateParticipantUI();
+                
+                // Adicionar ao Map
+                peers.set(conn.peer, { conn, call: null, stream: null, name: guestName });
+                
+                // Enviar lista de IDs e nomes já conectados (incluindo o Host)
+                const peersList = [{ id: peer.id, name: localName }];
+                peers.forEach((peerObj, pId) => {
+                    if (pId !== conn.peer) {
+                        peersList.push({ id: pId, name: peerObj.name });
+                    }
+                });
+                conn.send({ type: 'peers_list', peers: peersList });
+                
+                // Notificar outros peers sobre o novo participante
+                peers.forEach((peerObj, pId) => {
+                    if (pId !== conn.peer && peerObj.conn) {
+                        try {
+                            peerObj.conn.send({ type: 'novo_peer', id: conn.peer, name: guestName });
+                        } catch (e) {}
+                    }
+                });
+                
+                addParticipantToList(conn.peer);
+                updateParticipantUI();
+            }
         });
 
         conn.on('close', () => {
-            handlePeerDisconnect(conn.peer);
+            removePeer(conn.peer);
         });
 
         conn.on('error', (err) => {
             console.error('Host: Erro na conexão de dados com:', conn.peer, err);
-            handlePeerDisconnect(conn.peer);
+            removePeer(conn.peer);
         });
     });
 }
@@ -313,12 +322,12 @@ function setupCallHandlers(call) {
 
     call.on('close', () => {
         console.log('Chamada encerrada com:', peerId);
-        handlePeerDisconnect(peerId);
+        removePeer(peerId);
     });
 
     call.on('error', (err) => {
         console.error('Erro na chamada com:', peerId, err);
-        handlePeerDisconnect(peerId);
+        removePeer(peerId);
     });
 }
 
@@ -363,8 +372,16 @@ function handlePeerDisconnect(peerId) {
 
 // --- Lógica dos Eventos de Botão ---
 
+userNameInput.addEventListener('input', () => {
+    const hasName = userNameInput.value.trim().length > 0;
+    createRoomBtn.disabled = !hasName;
+    joinRoomBtn.disabled = !hasName;
+});
+
 createRoomBtn.addEventListener('click', async () => {
     errorMessage.innerText = '';
+    localName = userNameInput.value.trim();
+    if (!localName) return;
     try {
         await startMedia();
         const roomCode = generateRandomCode();
@@ -374,6 +391,8 @@ createRoomBtn.addEventListener('click', async () => {
 
 joinRoomBtn.addEventListener('click', async () => {
     errorMessage.innerText = '';
+    localName = userNameInput.value.trim();
+    if (!localName) return;
     const roomCode = roomCodeInput.value.trim();
     if (roomCode.length !== 5 || !/^\d{5}$/.test(roomCode)) {
         errorMessage.innerText = 'O código da sala deve ter 5 dígitos.';
@@ -392,43 +411,58 @@ joinRoomBtn.addEventListener('click', async () => {
             // Conectar ao Host via DataChannel
             const hostConn = peer.connect(roomCode);
             
-            // Adicionar o Host ao Map
-            peers.set(roomCode, { conn: hostConn, call: null, stream: null });
+            // Adicionar o Host ao Map (nome será atualizado após receber peers_list)
+            peers.set(roomCode, { conn: hostConn, call: null, stream: null, name: '' });
             
             hostConn.on('open', () => {
                 console.log('Guest: Conectado ao Host via DataChannel');
-                addParticipantToList(roomCode);
-                updateParticipantUI();
-                initiateCall(roomCode);
+                // Enviar sinalização de entrada com o nome local
+                hostConn.send({ type: 'join', name: localName });
             });
             
             hostConn.on('data', (data) => {
                 if (data.type === 'peers_list') {
-                    console.log('Guest: Recebeu lista de peers do Host:', data.ids);
-                    data.ids.forEach(pId => {
-                        initiateCall(pId);
+                    console.log('Guest: Recebeu lista de peers do Host:', data.peers);
+                    data.peers.forEach(p => {
+                        if (!peers.has(p.id)) {
+                            peers.set(p.id, { conn: null, call: null, stream: null, name: p.name });
+                        } else {
+                            peers.get(p.id).name = p.name;
+                        }
+                        addParticipantToList(p.id);
+                        initiateCall(p.id);
                     });
+                    updateParticipantUI();
                 } else if (data.type === 'novo_peer') {
-                    console.log('Guest: Recebeu novo peer:', data.id);
-                    initiateCall(data.id);
+                    console.log('Guest: Recebeu novo peer:', data.id, data.name);
+                    const peerId = data.id;
+                    const peerName = data.name;
+                    if (!peers.has(peerId)) {
+                        peers.set(peerId, { conn: null, call: null, stream: null, name: peerName });
+                    } else {
+                        peers.get(peerId).name = peerName;
+                    }
+                    addParticipantToList(peerId);
+                    updateParticipantUI();
+                    initiateCall(peerId);
                 } else if (data.type === 'sala_cheia') {
                     console.log('Guest: Sala cheia, voltando ao setup.');
                     errorMessage.innerText = 'A sala está cheia (máximo de 8 participantes).';
                     endCall();
-                } else if (data.type === 'peer_saida') {
+                } else if (data.type === 'peer_saiu') {
                     console.log('Guest: Participante saiu da sala:', data.id);
-                    handlePeerDisconnect(data.id);
+                    removePeer(data.id);
                 }
             });
             
             hostConn.on('close', () => {
                 console.log('Guest: Conexão de dados com Host fechada.');
-                endCall();
+                removePeer(roomCode);
             });
             
             hostConn.on('error', (err) => {
                 console.error('Guest: Erro na conexão de dados com Host:', err);
-                endCall();
+                removePeer(roomCode);
             });
         });
         
@@ -463,10 +497,15 @@ toggleMuteBtn.addEventListener('click', () => {
     updateMuteButtonUI();
 });
 
-// NOVO: Função para atualizar a aparência do botão de mudo
+// NOVO: Função para atualizar a aparência do botão de mudo e o indicador no próprio nome
 function updateMuteButtonUI() {
     toggleMuteBtn.classList.toggle('muted', isMuted);
     muteBtnText.innerText = isMuted ? 'Desmutar' : 'Mutar';
+    
+    const localNameSpan = document.getElementById('local-participant-name');
+    if (localNameSpan) {
+        localNameSpan.innerText = isMuted ? `Você (${localName}) 🔇` : `Você (${localName})`;
+    }
 }
 
 
@@ -475,6 +514,8 @@ function updateMuteButtonUI() {
 function endCall() {
     playSound('disconnect');
     stopTitleBlink();
+    
+    hadParticipantsConnected = false;
     
     // Fechar todas as conexões e chamadas
     peers.forEach((peerObj) => {
@@ -538,8 +579,8 @@ function showCallView(roomId) {
         const dot = document.createElement('span');
         dot.className = 'status-dot';
         const text = document.createElement('span');
-        const displayName = peer && peer.id ? peer.id.substring(0, 5) : 'Você';
-        text.innerText = `${displayName} (Você)`;
+        text.id = 'local-participant-name';
+        text.innerText = `Você (${localName})`;
         li.appendChild(dot);
         li.appendChild(text);
         list.appendChild(li);
@@ -560,7 +601,17 @@ function showSetupView() {
         partSection.style.display = 'none';
     }
     
+    // Resetar botões do setup
+    userNameInput.value = '';
     roomCodeInput.value = '';
+    createRoomBtn.disabled = true;
+    joinRoomBtn.disabled = true;
+    
+    const hangUpTextSpan = document.getElementById('hang-up-btn-text');
+    if (hangUpTextSpan) {
+        hangUpTextSpan.innerText = 'Desligar';
+    }
+    
     showView(setupSection);
 }
 
@@ -581,7 +632,7 @@ function addParticipantToList(peerId) {
     dot.className = 'status-dot';
     
     const text = document.createElement('span');
-    const displayName = peerId.substring(0, 5);
+    const displayName = peerObj.name || peerId.substring(0, 5);
     text.innerText = displayName;
     
     li.appendChild(dot);
@@ -603,15 +654,32 @@ function updateParticipantUI() {
         countDiv.innerText = `${totalParticipants} / 8 participantes`;
     }
     
+    const hangUpTextSpan = document.getElementById('hang-up-btn-text');
+    
     if (totalParticipants > 1) {
+        hadParticipantsConnected = true;
         statusDiv.classList.remove('status-waiting');
         statusDiv.classList.add('status-connected');
         statusMessage.innerText = 'Conectado!';
+        if (hangUpTextSpan) {
+            hangUpTextSpan.innerText = 'Desligar';
+        }
         stopTitleBlink();
     } else {
         statusDiv.classList.add('status-waiting');
         statusDiv.classList.remove('status-connected');
-        statusMessage.innerText = 'Aguardando outro participante';
+        
+        if (hadParticipantsConnected) {
+            statusMessage.innerText = 'Todos saíram da sala';
+            if (hangUpTextSpan) {
+                hangUpTextSpan.innerText = 'Encerrar Sala';
+            }
+        } else {
+            statusMessage.innerText = 'Aguardando outro participante';
+            if (hangUpTextSpan) {
+                hangUpTextSpan.innerText = 'Desligar';
+            }
+        }
         startTitleBlink('📞 Vocal');
     }
 }

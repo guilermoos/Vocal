@@ -35,7 +35,8 @@
             </header>
             
             <div class="actions">
-                <button id="create-room-btn" class="btn btn-primary">
+                <input type="text" id="user-name-input" placeholder="Seu nome" maxlength="20">
+                <button id="create-room-btn" class="btn btn-primary" disabled>
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 3.41l3.02-3.02c.61-.6.44-1.73-.39-2.1l-2.09-.94c-.45-.2-.98-.06-1.29.25l-1.37 1.37zM4.11 9.38l1.37 1.37c.31.31.74.45 1.29.25l2.09-.94c.83-.37 1-1.5.39-2.1L6.23 5.9c-.83-.38-1.87.12-1.87 1v2.48zM12 2a10 10 0 0 0-9.94 9h0a10 10 0 0 0 9.94 9h0a10 10 0 0 0 9.94-9h0A10 10 0 0 0 12 2z"></path></svg>
                     Criar Nova Sala
                 </button>
@@ -43,7 +44,7 @@
                 <div class="join-group">
                     <input type="text" id="room-code-input" placeholder="Cole o código da sala" maxlength="5">
                     </div>
-                    <button id="join-room-btn" class="btn">Entrar</button>
+                    <button id="join-room-btn" class="btn" disabled>Entrar</button>
                 </div>
             </div>
             <p id="error-message" class="error"></p>
@@ -90,7 +91,7 @@
                 </button>
                 <button id="hang-up-btn" class="btn btn-hangup">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                    Desligar
+                    <span id="hang-up-btn-text">Desligar</span>
                 </button>
             </div>
 

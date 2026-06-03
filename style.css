@@ -389,3 +389,10 @@ input[type="text"]:focus {
     display: inline-block;
     box-shadow: 0 0 8px #2ed573;
 }
+
+/* Estilo para botões desabilitados (campo de nome vazio) */
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
