@@ -34,17 +34,56 @@
                 <p class="subtitle">Chamadas de áudio simples e seguras.</p>
             </header>
             
-            <div class="actions">
-                <input type="text" id="user-name-input" placeholder="Seu nome" maxlength="20">
-                <button id="create-room-btn" class="btn btn-primary" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 3.41l3.02-3.02c.61-.6.44-1.73-.39-2.1l-2.09-.94c-.45-.2-.98-.06-1.29.25l-1.37 1.37zM4.11 9.38l1.37 1.37c.31.31.74.45 1.29.25l2.09-.94c.83-.37 1-1.5.39-2.1L6.23 5.9c-.83-.38-1.87.12-1.87 1v2.48zM12 2a10 10 0 0 0-9.94 9h0a10 10 0 0 0 9.94 9h0a10 10 0 0 0 9.94-9h0A10 10 0 0 0 12 2z"></path></svg>
-                    Criar Nova Sala
-                </button>
-                <div class="separator">ou</div>
-                <div class="join-group">
-                    <input type="text" id="room-code-input" placeholder="Cole o código da sala" maxlength="5">
-                    </div>
-                    <button id="join-room-btn" class="btn" disabled>Entrar</button>
+            <!-- Painel 1: Menu Principal -->
+            <div id="panel-main" class="setup-panel">
+                <div class="actions">
+                    <button id="btn-go-create" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+                        Criar uma Sala
+                    </button>
+                    <div class="separator">ou</div>
+                    <button id="btn-go-join" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        Entrar com Código
+                    </button>
+                </div>
+            </div>
+
+            <!-- Painel 2: Criar Sala (Nome) -->
+            <div id="panel-create" class="setup-panel" style="display: none;">
+                <div class="actions">
+                    <input type="text" id="create-name-input" placeholder="Seu nome" maxlength="20">
+                    <button id="create-room-btn" class="btn btn-primary" disabled>Criar Sala</button>
+                    <button id="btn-back-to-main-from-create" class="btn btn-secondary">Voltar</button>
+                </div>
+            </div>
+
+            <!-- Painel 3: Entrar com Código - Passo 1 (Código) -->
+            <div id="panel-join-code" class="setup-panel" style="display: none;">
+                <div class="actions">
+                    <input type="text" id="room-code-input" placeholder="Código da sala (5 dígitos)" maxlength="5">
+                    <button id="join-code-next-btn" class="btn btn-primary" disabled>Avançar</button>
+                    <button id="btn-back-to-main-from-join" class="btn btn-secondary">Voltar</button>
+                </div>
+            </div>
+
+            <!-- Painel 4: Entrar com Código - Passo 2 (Nome) -->
+            <div id="panel-join-name" class="setup-panel" style="display: none;">
+                <div class="actions">
+                    <p class="panel-info">Código da Sala: <strong id="joining-room-code-display"></strong></p>
+                    <input type="text" id="join-name-input" placeholder="Seu nome" maxlength="20">
+                    <button id="join-room-btn" class="btn" disabled>Entrar na Sala</button>
+                    <button id="btn-back-to-code" class="btn btn-secondary">Voltar</button>
+                </div>
+            </div>
+
+            <!-- Painel 5: Entrar via Link (Nome) -->
+            <div id="panel-link-join" class="setup-panel" style="display: none;">
+                <div class="actions">
+                    <p class="panel-info">Entrando na sala: <strong id="link-room-code-display"></strong></p>
+                    <input type="text" id="link-name-input" placeholder="Seu nome" maxlength="20">
+                    <button id="link-join-confirm-btn" class="btn btn-primary" disabled>Entrar na Sala</button>
+                    <button id="btn-cancel-link-join" class="btn btn-secondary">Voltar ao Menu</button>
                 </div>
             </div>
             <p id="error-message" class="error"></p>
@@ -57,13 +96,25 @@
             </header>
             
             <div class="room-info">
-                <span>Código da Sala:</span>
-                <div class="code-display">
-                    <code id="room-id-display"></code>
-                    <button id="copy-room-id-btn" title="Copiar código">
-                        <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                        <span id="copy-feedback">Copiado!</span>
-                    </button>
+                <div class="room-info-row">
+                    <span>Código da Sala:</span>
+                    <div class="code-display">
+                        <code id="room-id-display"></code>
+                        <button id="copy-room-id-btn" class="copy-btn-container" title="Copiar código">
+                            <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span id="copy-feedback" class="copy-feedback-class">Copiado!</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="room-info-row" id="share-link-row" style="margin-top: 0.75rem;">
+                    <span>Link de Convite:</span>
+                    <div class="code-display">
+                        <code id="share-link-display" style="font-size: 0.85rem; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></code>
+                        <button id="copy-share-link-btn" class="copy-btn-container" title="Copiar link">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path></svg>
+                            <span id="copy-share-feedback" class="copy-feedback-class">Copiado!</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 

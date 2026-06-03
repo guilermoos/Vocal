@@ -396,3 +396,68 @@ input[type="text"]:focus {
     cursor: not-allowed;
     pointer-events: none;
 }
+
+/* Estilo para os painéis do Wizard de Conexão */
+.setup-panel {
+    animation: fadeIn 0.4s ease-out forwards;
+    width: 100%;
+}
+
+.panel-info {
+    text-align: center;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.panel-info strong {
+    color: var(--primary);
+    font-family: monospace;
+    font-size: 1.1rem;
+}
+
+/* Estilo para múltiplas linhas na info da sala */
+.room-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.room-info-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.room-info-row > span {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Feedback de cópia generalizado */
+.copy-btn-container {
+    position: relative;
+}
+
+.copy-feedback-class {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--primary);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    white-space: nowrap;
+    z-index: 10;
+}
+
+.copied .copy-feedback-class {
+    opacity: 1;
+    visibility: visible;
+}

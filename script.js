@@ -13,7 +13,34 @@ const copyRoomIdBtn = document.getElementById('copy-room-id-btn');
 // NOVO: Seleção dos elementos de mudo
 const toggleMuteBtn = document.getElementById('toggle-mute-btn');
 const muteBtnText = document.getElementById('mute-btn-text');
-const userNameInput = document.getElementById('user-name-input');
+
+// Wizard Panels
+const panelMain = document.getElementById('panel-main');
+const panelCreate = document.getElementById('panel-create');
+const panelJoinCode = document.getElementById('panel-join-code');
+const panelJoinName = document.getElementById('panel-join-name');
+const panelLinkJoin = document.getElementById('panel-link-join');
+
+// Inputs
+const createNameInput = document.getElementById('create-name-input');
+const joinNameInput = document.getElementById('join-name-input');
+const linkNameInput = document.getElementById('link-name-input');
+
+// Wizard Buttons
+const btnGoCreate = document.getElementById('btn-go-create');
+const btnGoJoin = document.getElementById('btn-go-join');
+const btnBackToMainFromCreate = document.getElementById('btn-back-to-main-from-create');
+const btnBackToMainFromJoin = document.getElementById('btn-back-to-main-from-join');
+const btnBackToCode = document.getElementById('btn-back-to-code');
+const btnCancelLinkJoin = document.getElementById('btn-cancel-link-join');
+const joinCodeNextBtn = document.getElementById('join-code-next-btn');
+const linkJoinConfirmBtn = document.getElementById('link-join-confirm-btn');
+
+// Displays
+const joiningRoomCodeDisplay = document.getElementById('joining-room-code-display');
+const linkRoomCodeDisplay = document.getElementById('link-room-code-display');
+const shareLinkDisplay = document.getElementById('share-link-display');
+const copyShareLinkBtn = document.getElementById('copy-share-link-btn');
 
 
 // --- Variáveis de Estado ---
@@ -22,6 +49,7 @@ let localStream;
 let isMuted = false; // NOVO: Controla o estado do mudo
 let localName = '';
 let hadParticipantsConnected = false;
+let targetRoomCode = '';
 
 // --- Estado Multi-party Mesh ---
 const peers = new Map(); // peerId -> { conn, call, stream, audioElement, listItemElement, name }
@@ -231,8 +259,14 @@ function initializePeer(peerId) {
                     return;
                 }
                 
-                // Adicionar ao Map
-                peers.set(conn.peer, { conn, call: null, stream: null, name: guestName });
+                // Adicionar ao Map sem sobrescrever chamada/stream se eles já foram estabelecidos
+                if (!peers.has(conn.peer)) {
+                    peers.set(conn.peer, { conn, call: null, stream: null, name: guestName });
+                } else {
+                    const peerObj = peers.get(conn.peer);
+                    peerObj.conn = conn;
+                    peerObj.name = guestName;
+                }
                 
                 // Enviar lista de IDs e nomes já conectados (incluindo o Host)
                 const peersList = [{ id: peer.id, name: localName }];
@@ -331,7 +365,7 @@ function setupCallHandlers(call) {
     });
 }
 
-function handlePeerDisconnect(peerId) {
+function removePeer(peerId) {
     if (!peers.has(peerId)) return;
     console.log('Removendo participante da chamada:', peerId);
     const peerObj = peers.get(peerId);
@@ -362,7 +396,7 @@ function handlePeerDisconnect(peerId) {
         peers.forEach((otherPeer) => {
             if (otherPeer.conn) {
                 try {
-                    otherPeer.conn.send({ type: 'peer_saida', id: peerId });
+                    otherPeer.conn.send({ type: 'peer_saiu', id: peerId });
                 } catch (e) {}
             }
         });
@@ -372,32 +406,125 @@ function handlePeerDisconnect(peerId) {
 
 // --- Lógica dos Eventos de Botão ---
 
-userNameInput.addEventListener('input', () => {
-    const hasName = userNameInput.value.trim().length > 0;
-    createRoomBtn.disabled = !hasName;
-    joinRoomBtn.disabled = !hasName;
-});
+// --- Funções Auxiliares de Navegação do Wizard ---
+
+function showPanel(panel) {
+    [panelMain, panelCreate, panelJoinCode, panelJoinName, panelLinkJoin].forEach(p => {
+        if (p) p.style.display = 'none';
+    });
+    if (panel) panel.style.display = 'block';
+    errorMessage.innerText = '';
+}
+
+// --- Listeners de Input para Validar/Habilitar Botões ---
+
+if (createNameInput) {
+    createNameInput.addEventListener('input', () => {
+        const hasName = createNameInput.value.trim().length > 0;
+        createRoomBtn.disabled = !hasName;
+    });
+}
+
+if (roomCodeInput) {
+    roomCodeInput.addEventListener('input', () => {
+        const code = roomCodeInput.value.trim();
+        const isValidCode = code.length === 5 && /^\d{5}$/.test(code);
+        joinCodeNextBtn.disabled = !isValidCode;
+    });
+}
+
+if (joinNameInput) {
+    joinNameInput.addEventListener('input', () => {
+        const hasName = joinNameInput.value.trim().length > 0;
+        joinRoomBtn.disabled = !hasName;
+    });
+}
+
+if (linkNameInput) {
+    linkNameInput.addEventListener('input', () => {
+        const hasName = linkNameInput.value.trim().length > 0;
+        linkJoinConfirmBtn.disabled = !hasName;
+    });
+}
+
+// --- Listeners de Navegação entre Painéis ---
+
+if (btnGoCreate) {
+    btnGoCreate.addEventListener('click', () => {
+        createNameInput.value = '';
+        createRoomBtn.disabled = true;
+        showPanel(panelCreate);
+        createNameInput.focus();
+    });
+}
+
+if (btnGoJoin) {
+    btnGoJoin.addEventListener('click', () => {
+        roomCodeInput.value = '';
+        joinCodeNextBtn.disabled = true;
+        showPanel(panelJoinCode);
+        roomCodeInput.focus();
+    });
+}
+
+if (btnBackToMainFromCreate) {
+    btnBackToMainFromCreate.addEventListener('click', () => {
+        showPanel(panelMain);
+    });
+}
+
+if (btnBackToMainFromJoin) {
+    btnBackToMainFromJoin.addEventListener('click', () => {
+        showPanel(panelMain);
+    });
+}
+
+if (joinCodeNextBtn) {
+    joinCodeNextBtn.addEventListener('click', () => {
+        targetRoomCode = roomCodeInput.value.trim();
+        joiningRoomCodeDisplay.innerText = targetRoomCode;
+        joinNameInput.value = '';
+        joinRoomBtn.disabled = true;
+        showPanel(panelJoinName);
+        joinNameInput.focus();
+    });
+}
+
+if (btnBackToCode) {
+    btnBackToCode.addEventListener('click', () => {
+        showPanel(panelJoinCode);
+    });
+}
+
+if (btnCancelLinkJoin) {
+    btnCancelLinkJoin.addEventListener('click', () => {
+        // Reset query param
+        window.history.replaceState({}, document.title, window.location.pathname);
+        showPanel(panelMain);
+    });
+}
+
+// --- Lógica dos Eventos de Botão de Ação ---
 
 createRoomBtn.addEventListener('click', async () => {
     errorMessage.innerText = '';
-    localName = userNameInput.value.trim();
+    localName = createNameInput.value.trim();
     if (!localName) return;
     try {
         await startMedia();
         const roomCode = generateRandomCode();
         initializePeer(roomCode);
-    } catch (error) {}
+    } catch (error) {
+        console.error("Erro ao criar sala:", error);
+    }
 });
 
-joinRoomBtn.addEventListener('click', async () => {
+// Ação de entrada comum a código e link
+async function joinRoom(roomCode, nameToUse) {
     errorMessage.innerText = '';
-    localName = userNameInput.value.trim();
-    if (!localName) return;
-    const roomCode = roomCodeInput.value.trim();
-    if (roomCode.length !== 5 || !/^\d{5}$/.test(roomCode)) {
-        errorMessage.innerText = 'O código da sala deve ter 5 dígitos.';
-        return;
-    }
+    localName = nameToUse;
+    targetRoomCode = roomCode;
+    if (!localName || !targetRoomCode) return;
     
     try {
         await startMedia();
@@ -406,13 +533,13 @@ joinRoomBtn.addEventListener('click', async () => {
         
         peer.on('open', (id) => {
             console.log('Guest: ID do peer criado:', id);
-            showCallView(roomCode);
+            showCallView(targetRoomCode);
             
             // Conectar ao Host via DataChannel
-            const hostConn = peer.connect(roomCode);
+            const hostConn = peer.connect(targetRoomCode);
             
             // Adicionar o Host ao Map (nome será atualizado após receber peers_list)
-            peers.set(roomCode, { conn: hostConn, call: null, stream: null, name: '' });
+            peers.set(targetRoomCode, { conn: hostConn, call: null, stream: null, name: '' });
             
             hostConn.on('open', () => {
                 console.log('Guest: Conectado ao Host via DataChannel');
@@ -457,12 +584,12 @@ joinRoomBtn.addEventListener('click', async () => {
             
             hostConn.on('close', () => {
                 console.log('Guest: Conexão de dados com Host fechada.');
-                removePeer(roomCode);
+                removePeer(targetRoomCode);
             });
             
             hostConn.on('error', (err) => {
                 console.error('Guest: Erro na conexão de dados com Host:', err);
-                removePeer(roomCode);
+                removePeer(targetRoomCode);
             });
         });
         
@@ -470,10 +597,23 @@ joinRoomBtn.addEventListener('click', async () => {
         
     } catch (error) {
         console.error('Erro ao entrar na sala:', error);
+        errorMessage.innerText = 'Erro ao acessar o microfone ou conectar.';
     }
+}
+
+joinRoomBtn.addEventListener('click', () => {
+    const name = joinNameInput.value.trim();
+    joinRoom(targetRoomCode, name);
+});
+
+linkJoinConfirmBtn.addEventListener('click', () => {
+    const name = linkNameInput.value.trim();
+    joinRoom(targetRoomCode, name);
 });
 
 hangUpBtn.addEventListener('click', endCall);
+
+// --- Cópia do Código e Link ---
 
 copyRoomIdBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(roomIdDisplay.innerText).then(() => {
@@ -482,6 +622,16 @@ copyRoomIdBtn.addEventListener('click', () => {
             copyRoomIdBtn.classList.remove('copied');
         }, 2000);
     }).catch(err => console.error('Falha ao copiar:', err));
+});
+
+copyShareLinkBtn.addEventListener('click', () => {
+    const shareLink = shareLinkDisplay.innerText;
+    navigator.clipboard.writeText(shareLink).then(() => {
+        copyShareLinkBtn.classList.add('copied');
+        setTimeout(() => {
+            copyShareLinkBtn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => console.error('Falha ao copiar link:', err));
 });
 
 // NOVO: Lógica do botão de mutar
@@ -564,6 +714,12 @@ function showCallView(roomId) {
     isMuted = false;
     updateMuteButtonUI();
     
+    // Gerar e exibir o link de compartilhamento
+    if (shareLinkDisplay) {
+        const shareLink = window.location.origin + window.location.pathname + '?room=' + roomId;
+        shareLinkDisplay.innerText = shareLink;
+    }
+    
     // Mostrar a seção de participantes
     const partSection = document.getElementById('participants-section');
     if (partSection) {
@@ -601,17 +757,26 @@ function showSetupView() {
         partSection.style.display = 'none';
     }
     
-    // Resetar botões do setup
-    userNameInput.value = '';
-    roomCodeInput.value = '';
+    // Resetar inputs e botões do setup (wizard)
+    if (createNameInput) createNameInput.value = '';
+    if (joinNameInput) joinNameInput.value = '';
+    if (roomCodeInput) roomCodeInput.value = '';
+    if (linkNameInput) linkNameInput.value = '';
+    
     createRoomBtn.disabled = true;
     joinRoomBtn.disabled = true;
+    joinCodeNextBtn.disabled = true;
+    linkJoinConfirmBtn.disabled = true;
     
     const hangUpTextSpan = document.getElementById('hang-up-btn-text');
     if (hangUpTextSpan) {
         hangUpTextSpan.innerText = 'Desligar';
     }
     
+    // Limpar o parâmetro de busca na URL ao voltar para a tela inicial
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    showPanel(panelMain);
     showView(setupSection);
 }
 
@@ -620,7 +785,15 @@ function showSetupView() {
 function addParticipantToList(peerId) {
     if (!peers.has(peerId)) return;
     const peerObj = peers.get(peerId);
-    if (peerObj.listItemElement) return; // Já está na lista
+    
+    // Se já está na lista, garante que o nome exibido esteja atualizado
+    if (peerObj.listItemElement) {
+        const textSpan = peerObj.listItemElement.querySelector('span:not(.status-dot)');
+        if (textSpan) {
+            textSpan.innerText = peerObj.name || peerId.substring(0, 5);
+        }
+        return;
+    }
     
     const list = document.getElementById('participant-list');
     if (!list) return;
@@ -682,6 +855,22 @@ function updateParticipantUI() {
         }
         startTitleBlink('📞 Vocal');
     }
+}
+
+// --- Inicialização e Checagem de URL ---
+const urlParams = new URLSearchParams(window.location.search);
+const urlRoom = urlParams.get('room');
+if (urlRoom && /^\d{5}$/.test(urlRoom)) {
+    targetRoomCode = urlRoom;
+    if (linkRoomCodeDisplay) {
+        linkRoomCodeDisplay.innerText = urlRoom;
+    }
+    showPanel(panelLinkJoin);
+    if (linkNameInput) {
+        setTimeout(() => linkNameInput.focus(), 100);
+    }
+} else {
+    showPanel(panelMain);
 }
 
 // --- Registro do Service Worker ---
