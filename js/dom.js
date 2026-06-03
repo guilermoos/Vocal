@@ -54,6 +54,14 @@ export const chatMessages = document.getElementById('chat-messages');
 export const chatMessageInput = document.getElementById('chat-message-input');
 export const sendChatBtn = document.getElementById('send-chat-btn');
 
+// Media Elements
+export const attachMediaBtn = document.getElementById('attach-media-btn');
+export const mediaFileInput = document.getElementById('media-file-input');
+export const mediaPreviewContainer = document.getElementById('media-preview-container');
+export const mediaPreviewImg = document.getElementById('media-preview-img');
+export const mediaPreviewVideo = document.getElementById('media-preview-video');
+export const cancelMediaBtn = document.getElementById('cancel-media-btn');
+
 // --- Funções de UI ---
 
 export function showPanel(panel) {
@@ -271,7 +279,7 @@ export function updateChatBadgeUI() {
     chatBadge.style.display = state.unreadCount > 0 ? 'block' : 'none';
 }
 
-export function appendChatMessage(senderName, text, type = 'user', senderId = null) {
+export function appendChatMessage(senderName, text, type = 'user', senderId = null, media = null) {
     if (!chatMessages) return;
     
     if (type === 'system') {
@@ -291,11 +299,29 @@ export function appendChatMessage(senderName, text, type = 'user', senderId = nu
             senderDiv.innerText = senderName;
             wrapper.appendChild(senderDiv);
         }
-        
-        const bubble = document.createElement('div');
-        bubble.className = 'message-bubble';
-        bubble.innerText = text;
-        wrapper.appendChild(bubble);
+
+        // Render media if present
+        if (media && media.dataUrl) {
+            const isVideo = media.mimeType && media.mimeType.startsWith('video/');
+            const mediaEl = document.createElement(isVideo ? 'video' : 'img');
+            mediaEl.src = media.dataUrl;
+            mediaEl.className = isVideo ? 'message-media-video' : 'message-media-img';
+            if (isVideo) {
+                mediaEl.controls = true;
+                mediaEl.muted = false;
+                mediaEl.playsInline = true;
+            }
+            mediaEl.addEventListener('click', () => openMediaLightbox(media.dataUrl, isVideo));
+            wrapper.appendChild(mediaEl);
+        }
+
+        // Render text bubble if there's text
+        if (text && text.trim()) {
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            bubble.innerText = text;
+            wrapper.appendChild(bubble);
+        }
         
         chatMessages.appendChild(wrapper);
         
@@ -311,4 +337,28 @@ export function appendChatMessage(senderName, text, type = 'user', senderId = nu
     
     // Auto-scroll para a última mensagem
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function openMediaLightbox(src, isVideo) {
+    const overlay = document.createElement('div');
+    overlay.className = 'media-lightbox';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'media-lightbox-close';
+    closeBtn.innerHTML = '<span class="material-symbols-rounded">close</span>';
+    closeBtn.addEventListener('click', () => overlay.remove());
+
+    const mediaEl = document.createElement(isVideo ? 'video' : 'img');
+    mediaEl.src = src;
+    if (isVideo) {
+        mediaEl.controls = true;
+        mediaEl.autoplay = true;
+        mediaEl.playsInline = true;
+    }
+    mediaEl.addEventListener('click', (e) => e.stopPropagation());
+
+    overlay.addEventListener('click', () => overlay.remove());
+    overlay.appendChild(closeBtn);
+    overlay.appendChild(mediaEl);
+    document.body.appendChild(overlay);
 }

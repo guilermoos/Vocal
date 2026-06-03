@@ -109,7 +109,8 @@
     margin: 0.25rem 0;
 }
 
-.separator::before, .separator::after {
+.separator::before,
+.separator::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -117,5 +118,11 @@
     height: 1px;
     background-color: var(--border-color);
 }
-.separator::before { left: 0; }
-.separator::after { right: 0; }
+
+.separator::before {
+    left: 0;
+}
+
+.separator::after {
+    right: 0;
+}

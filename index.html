@@ -202,7 +202,31 @@
                     <div id="chat-messages">
                         <!-- Mensagens enviadas em tempo real -->
                     </div>
+                    <div id="media-preview-container" style="display: none;">
+                        <div id="media-preview-inner">
+                            <button id="cancel-media-btn" class="cancel-media-btn" title="Cancelar">
+                                <span class="material-symbols-rounded">close</span>
+                            </button>
+                            <img id="media-preview-img" style="display: none;" alt="Preview">
+                            <video id="media-preview-video" style="display: none;" controls muted playsinline></video>
+                        </div>
+                    </div>
                     <div class="chat-input-row">
+                        <input type="file" id="media-file-input" accept="image/*,video/*" style="display: none;">
+                        <input type="file" id="media-camera-input" accept="image/*,video/*" capture="environment" style="display: none;">
+                        <div class="attach-menu" id="attach-menu" style="display: none;">
+                            <button id="attach-gallery-btn" class="attach-menu-item">
+                                <span class="material-symbols-rounded">photo_library</span>
+                                Galeria
+                            </button>
+                            <button id="attach-camera-btn" class="attach-menu-item">
+                                <span class="material-symbols-rounded">photo_camera</span>
+                                Câmera
+                            </button>
+                        </div>
+                        <button id="attach-media-btn" class="attach-btn" title="Enviar imagem ou vídeo">
+                            <span class="material-symbols-rounded">attach_file</span>
+                        </button>
                         <input type="text" id="chat-message-input" placeholder="Digite uma mensagem..." maxlength="200">
                         <button id="send-chat-btn" class="send-btn" disabled>
                             <span class="material-symbols-rounded">send</span>

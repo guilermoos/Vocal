@@ -37,10 +37,146 @@ import {
     tabCallBtn,
     tabChatBtn,
     chatMessageInput,
-    sendChatBtn
+    sendChatBtn,
+
+    // Media
+    attachMediaBtn,
+    mediaFileInput,
+    mediaPreviewContainer,
+    mediaPreviewImg,
+    mediaPreviewVideo,
+    cancelMediaBtn,
 } from './dom.js';
 import { generateRandomCode, setupClipboardCopy } from './utils.js';
 import { initializePeer, joinRoom, startMedia, endCall, sendChatMessage } from './peer-manager.js';
+
+// --- Media State ---
+let pendingMedia = null; // { dataUrl, mimeType }
+
+function clearPendingMedia() {
+    pendingMedia = null;
+    if (mediaPreviewContainer) mediaPreviewContainer.style.display = 'none';
+    if (mediaPreviewImg) { mediaPreviewImg.style.display = 'none'; mediaPreviewImg.src = ''; }
+    if (mediaPreviewVideo) { mediaPreviewVideo.style.display = 'none'; mediaPreviewVideo.src = ''; }
+    if (mediaFileInput) mediaFileInput.value = '';
+    updateSendBtnState();
+}
+
+function updateSendBtnState() {
+    const hasText = chatMessageInput && chatMessageInput.value.trim().length > 0;
+    if (sendChatBtn) sendChatBtn.disabled = !hasText && !pendingMedia;
+}
+
+// --- Media Attach Menu Logic ---
+
+const mediaCameraInput = document.getElementById('media-camera-input');
+const attachMenu = document.getElementById('attach-menu');
+const attachGalleryBtn = document.getElementById('attach-gallery-btn');
+const attachCameraBtn = document.getElementById('attach-camera-btn');
+
+/** Detect if user is on a touch/mobile device */
+const isMobileDevice = () => {
+    return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+};
+
+function toggleAttachMenu() {
+    if (!attachMenu) return;
+    const isVisible = attachMenu.style.display === 'flex';
+    attachMenu.style.display = isVisible ? 'none' : 'flex';
+}
+
+function closeAttachMenu() {
+    if (attachMenu) attachMenu.style.display = 'none';
+}
+
+if (attachMediaBtn) {
+    attachMediaBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isMobileDevice()) {
+            // Mobile: show picker menu
+            toggleAttachMenu();
+        } else {
+            // Desktop: open file picker directly
+            closeAttachMenu();
+            if (mediaFileInput) mediaFileInput.click();
+        }
+    });
+}
+
+if (attachGalleryBtn) {
+    attachGalleryBtn.addEventListener('click', () => {
+        closeAttachMenu();
+        if (mediaFileInput) mediaFileInput.click();
+    });
+}
+
+if (attachCameraBtn) {
+    attachCameraBtn.addEventListener('click', () => {
+        closeAttachMenu();
+        if (mediaCameraInput) mediaCameraInput.click();
+    });
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', (e) => {
+    if (attachMenu && attachMenu.style.display === 'flex') {
+        if (!attachMenu.contains(e.target) && e.target !== attachMediaBtn) {
+            closeAttachMenu();
+        }
+    }
+});
+
+if (cancelMediaBtn) {
+    cancelMediaBtn.addEventListener('click', () => clearPendingMedia());
+}
+
+function processSelectedFile(file) {
+    if (!file) return;
+
+    const MAX_SIZE_MB = 10;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        alert(`O arquivo é muito grande. Limite: ${MAX_SIZE_MB}MB.`);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        pendingMedia = { dataUrl: e.target.result, mimeType: file.type };
+        const isVideo = file.type.startsWith('video/');
+
+        if (mediaPreviewContainer) mediaPreviewContainer.style.display = 'block';
+
+        if (isVideo) {
+            if (mediaPreviewImg) mediaPreviewImg.style.display = 'none';
+            if (mediaPreviewVideo) {
+                mediaPreviewVideo.src = e.target.result;
+                mediaPreviewVideo.style.display = 'block';
+            }
+        } else {
+            if (mediaPreviewVideo) mediaPreviewVideo.style.display = 'none';
+            if (mediaPreviewImg) {
+                mediaPreviewImg.src = e.target.result;
+                mediaPreviewImg.style.display = 'block';
+            }
+        }
+        updateSendBtnState();
+    };
+    reader.readAsDataURL(file);
+}
+
+if (mediaFileInput) {
+    mediaFileInput.addEventListener('change', () => {
+        processSelectedFile(mediaFileInput.files[0]);
+        mediaFileInput.value = '';
+    });
+}
+
+if (mediaCameraInput) {
+    mediaCameraInput.addEventListener('change', () => {
+        processSelectedFile(mediaCameraInput.files[0]);
+        mediaCameraInput.value = '';
+    });
+}
 
 // --- Listeners de Input para Validar/Habilitar Botões ---
 
@@ -201,17 +337,17 @@ if (tabChatBtn) {
 
 if (chatMessageInput) {
     chatMessageInput.addEventListener('input', () => {
-        const hasText = chatMessageInput.value.trim().length > 0;
-        sendChatBtn.disabled = !hasText;
+        updateSendBtnState();
     });
 }
 
 const performSendChat = () => {
-    const text = chatMessageInput.value;
-    if (!text.trim()) return;
-    sendChatMessage(text);
-    chatMessageInput.value = '';
-    sendChatBtn.disabled = true;
+    const text = chatMessageInput ? chatMessageInput.value : '';
+    if (!text.trim() && !pendingMedia) return;
+    const mediaToSend = pendingMedia;
+    sendChatMessage(text, mediaToSend);
+    if (chatMessageInput) chatMessageInput.value = '';
+    clearPendingMedia();
 };
 
 if (sendChatBtn) {
