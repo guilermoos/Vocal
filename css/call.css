@@ -1,16 +1,27 @@
 /* --- Call Section UI --- */
-.call-indicator {
+#call-section header {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+#call-section h1 {
+    font-size: 1.5rem;
+}
+
+#call-section .call-indicator {
     position: relative;
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0;
 }
 
-.header-call-icon {
-    font-size: 28px !important;
+#call-section .header-call-icon {
+    font-size: 20px !important;
     color: var(--primary);
     z-index: 2;
 }
@@ -47,10 +58,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.03);
+    padding: 0.5rem 0;
 }
 
 .room-info-row > span {
@@ -65,10 +73,9 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background-color: rgba(15, 23, 42, 0.5);
+    background-color: rgba(255, 255, 255, 0.04);
     padding: 6px 10px;
     border-radius: 8px;
-    border: 1px solid var(--border-color);
     max-width: 60%;
 }
 
@@ -239,8 +246,7 @@
 /* --- Participants Mesh P2P List --- */
 #participants-section {
     width: 100%;
-    border-top: 1px solid var(--border-color);
-    padding-top: 1.25rem;
+    padding-top: 0.5rem;
     margin-top: 0.5rem;
 }
 
@@ -282,10 +288,8 @@
     gap: 0.75rem;
     font-size: 0.9rem;
     font-weight: 500;
-    padding: 10px 14px;
-    background-color: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
+    padding: 8px 0;
+    background-color: transparent;
     opacity: 0;
     transform: translateY(8px);
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -342,23 +346,24 @@
 /* --- Call Tabs Bar --- */
 .call-tabs {
     display: flex;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 4px;
-    gap: 4px;
-    margin-bottom: 0.5rem;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0;
+    padding: 0;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .tab-btn {
-    flex: 1;
+    flex: none;
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    padding: 10px;
-    border-radius: 8px;
+    padding: 10px 4px;
+    border-radius: 0;
     font-family: var(--font-title);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     display: flex;
@@ -369,15 +374,30 @@
     position: relative;
 }
 
+.tab-btn::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: var(--primary);
+    transform: scaleX(0);
+    transition: transform 0.25s ease;
+}
+
 .tab-btn:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.04);
 }
 
 .tab-btn.active {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: transparent;
+    box-shadow: none;
+}
+
+.tab-btn.active::after {
+    transform: scaleX(1);
 }
 
 /* Chat notification badge */
@@ -473,13 +493,11 @@
     background: linear-gradient(135deg, var(--primary) 0%, #2563eb 100%);
     color: #ffffff;
     border-bottom-right-radius: 4px;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
 }
 
 .message-wrapper.incoming .message-bubble {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
     border-bottom-left-radius: 4px;
 }
 
@@ -506,8 +524,8 @@
 
 .chat-input-row input[type="text"] {
     flex: 1;
-    background-color: rgba(15, 23, 42, 0.6);
-    border: 1px solid var(--border-color);
+    background-color: rgba(255, 255, 255, 0.03);
+    border: none;
     border-radius: 12px;
     padding: 11px 14px;
     color: var(--text-primary);
@@ -518,8 +536,8 @@
 
 .chat-input-row input[type="text"]:focus {
     outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
 
 .send-btn {
@@ -582,13 +600,19 @@
     #call-section.active {
         display: grid !important;
         grid-template-columns: 1fr 1.2fr;
-        grid-template-rows: 1fr auto;
+        grid-template-rows: auto 1fr auto;
         grid-template-areas: 
+            "header chat"
             "call chat"
             "controls chat";
         gap: 1.5rem 2.5rem;
         height: 100%;
-        padding: 2.5rem;
+        padding: 2.5rem 0.5rem;
+    }
+    
+    #call-section.active header {
+        grid-area: header;
+        justify-content: flex-start;
     }
     
     .call-tabs {
@@ -604,8 +628,6 @@
     
     #call-tab-content {
         grid-area: call;
-        border-right: 1px solid var(--border-color);
-        padding-right: 2.5rem;
     }
     
     #chat-tab-content {
@@ -615,8 +637,6 @@
     .call-controls {
         grid-area: controls;
         padding-top: 0;
-        border-right: 1px solid var(--border-color);
-        padding-right: 2.5rem;
     }
     
     #chat-messages {
