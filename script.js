@@ -5,7 +5,6 @@ const createRoomBtn = document.getElementById('create-room-btn');
 const joinRoomBtn = document.getElementById('join-room-btn');
 const roomCodeInput = document.getElementById('room-code-input');
 const hangUpBtn = document.getElementById('hang-up-btn');
-const remoteAudio = document.getElementById('remote-audio');
 const roomIdDisplay = document.getElementById('room-id-display');
 const statusDiv = document.getElementById('status');
 const statusMessage = document.getElementById('status-message');
@@ -19,8 +18,12 @@ const muteBtnText = document.getElementById('mute-btn-text');
 // --- Variáveis de Estado ---
 let peer;
 let localStream;
-let currentCall;
 let isMuted = false; // NOVO: Controla o estado do mudo
+
+// --- Estado Multi-party Mesh ---
+const peers = new Map(); // peerId -> { conn, call, stream, audioElement, listItemElement }
+let isHost = false;
+const MAX_PARTICIPANTS = 8;
 
 // --- Estado das Notificações ---
 let audioCtx;
@@ -156,21 +159,35 @@ async function startMedia() {
 
 // --- Lógica do PeerJS ---
 
-function initializePeer(peerId) {
-    peer = new Peer(peerId);
-
-    peer.on('open', (id) => {
-        console.log('Meu ID de peer é: ' + id);
-        showCallView(id);
-    });
-
+function setupPeerCommonEvents() {
     peer.on('call', (call) => {
-        if (!localStream) {
-            console.error("Stream local não está pronta.");
+        const incomingPeerId = call.peer;
+        console.log('Recebendo chamada de:', incomingPeerId);
+        
+        // Resolução de chamadas duplicadas
+        if (peers.has(incomingPeerId) && peers.get(incomingPeerId).call) {
+            if (peer.id > incomingPeerId) {
+                console.log('Fechando chamada duplicada local para aceitar chamada de:', incomingPeerId);
+                try {
+                    peers.get(incomingPeerId).call.close();
+                } catch (e) {}
+                peers.get(incomingPeerId).call = call;
+                playSound('incoming');
+                startTitleBlink('🔔 Chamada entrando...');
+                call.answer(localStream);
+                setupCallHandlers(call);
+            } else {
+                console.log('Rejeitando chamada de entrada duplicada de:', incomingPeerId);
+                call.close();
+            }
             return;
         }
         
-        console.log('Recebendo chamada...');
+        if (!peers.has(incomingPeerId)) {
+            peers.set(incomingPeerId, { conn: null, call: null, stream: null });
+        }
+        peers.get(incomingPeerId).call = call;
+        
         playSound('incoming');
         startTitleBlink('🔔 Chamada entrando...');
         call.answer(localStream);
@@ -179,29 +196,168 @@ function initializePeer(peerId) {
 
     peer.on('error', (err) => {
         console.error('Erro no PeerJS:', err);
-        errorMessage.innerText = `Erro de conexão: ${err.message}. Tente outro código.`;
-        showSetupView();
+        errorMessage.innerText = `Erro de conexão: ${err.message}.`;
+        endCall();
     });
 }
 
+function initializePeer(peerId) {
+    isHost = true;
+    peer = new Peer(peerId);
+
+    peer.on('open', (id) => {
+        console.log('Host: ID do peer criado:', id);
+        showCallView(id);
+    });
+
+    setupPeerCommonEvents();
+
+    peer.on('connection', (conn) => {
+        console.log('Host: Recebeu conexão de dados de:', conn.peer);
+        
+        // Verificar limite de participantes (máximo de 8 no total)
+        if (peers.size + 1 >= MAX_PARTICIPANTS) {
+            console.log('Host: Sala cheia, rejeitando:', conn.peer);
+            conn.on('open', () => {
+                conn.send({ type: 'sala_cheia' });
+                setTimeout(() => conn.close(), 1000);
+            });
+            return;
+        }
+
+        conn.on('open', () => {
+            // Enviar lista de IDs já conectados
+            const connectedIds = Array.from(peers.keys());
+            conn.send({ type: 'peers_list', ids: connectedIds });
+
+            // Adicionar ao Map
+            if (!peers.has(conn.peer)) {
+                peers.set(conn.peer, { conn, call: null, stream: null });
+            } else {
+                peers.get(conn.peer).conn = conn;
+            }
+
+            // Notificar outros peers sobre o novo participante
+            peers.forEach((peerObj, pId) => {
+                if (pId !== conn.peer && peerObj.conn) {
+                    peerObj.conn.send({ type: 'novo_peer', id: conn.peer });
+                }
+            });
+
+            addParticipantToList(conn.peer);
+            updateParticipantUI();
+        });
+
+        conn.on('close', () => {
+            handlePeerDisconnect(conn.peer);
+        });
+
+        conn.on('error', (err) => {
+            console.error('Host: Erro na conexão de dados com:', conn.peer, err);
+            handlePeerDisconnect(conn.peer);
+        });
+    });
+}
+
+function initiateCall(targetPeerId) {
+    if (!localStream) {
+        console.error('Stream local não está disponível para iniciar chamada.');
+        return;
+    }
+    if (peers.has(targetPeerId) && peers.get(targetPeerId).call) {
+        return; // Já possui chamada ativa
+    }
+    
+    console.log('Iniciando chamada para:', targetPeerId);
+    const call = peer.call(targetPeerId, localStream);
+    
+    if (!peers.has(targetPeerId)) {
+        peers.set(targetPeerId, { conn: null, call, stream: null });
+    } else {
+        peers.get(targetPeerId).call = call;
+    }
+    
+    setupCallHandlers(call);
+}
+
 function setupCallHandlers(call) {
-    currentCall = call;
+    const peerId = call.peer;
 
     call.on('stream', (remoteStream) => {
-        console.log('Recebendo stream remoto.');
+        console.log('Recebendo stream remoto de:', peerId);
+        
+        if (!peers.has(peerId)) {
+            peers.set(peerId, { conn: null, call, stream: remoteStream });
+        } else {
+            peers.get(peerId).stream = remoteStream;
+            peers.get(peerId).call = call;
+        }
+
+        const peerObj = peers.get(peerId);
+        
+        // Criar elemento de áudio dinâmico se não existir
+        if (!peerObj.audioElement) {
+            const audio = document.createElement('audio');
+            audio.autoplay = true;
+            audio.srcObject = remoteStream;
+            document.body.appendChild(audio);
+            peerObj.audioElement = audio;
+        } else {
+            peerObj.audioElement.srcObject = remoteStream;
+        }
+
+        addParticipantToList(peerId);
+        updateParticipantUI();
         playSound('connect');
-        stopTitleBlink();
-        statusDiv.classList.remove('status-waiting');
-        statusDiv.classList.add('status-connected');
-        statusMessage.innerText = 'Conectado!';
-        remoteAudio.srcObject = remoteStream;
     });
 
-    call.on('close', endCall);
-    call.on('error', (err) => {
-        console.error("Erro na chamada:", err);
-        endCall();
+    call.on('close', () => {
+        console.log('Chamada encerrada com:', peerId);
+        handlePeerDisconnect(peerId);
     });
+
+    call.on('error', (err) => {
+        console.error('Erro na chamada com:', peerId, err);
+        handlePeerDisconnect(peerId);
+    });
+}
+
+function handlePeerDisconnect(peerId) {
+    if (!peers.has(peerId)) return;
+    console.log('Removendo participante da chamada:', peerId);
+    const peerObj = peers.get(peerId);
+    
+    if (peerObj.call) {
+        try { peerObj.call.close(); } catch (e) {}
+    }
+    if (peerObj.conn) {
+        try { peerObj.conn.close(); } catch (e) {}
+    }
+    if (peerObj.audioElement) {
+        try { peerObj.audioElement.remove(); } catch (e) {}
+    }
+    if (peerObj.listItemElement) {
+        const item = peerObj.listItemElement;
+        item.classList.add('fade-out');
+        setTimeout(() => {
+            try { item.remove(); } catch (e) {}
+        }, 500);
+    }
+    
+    peers.delete(peerId);
+    updateParticipantUI();
+    playSound('disconnect');
+    
+    // Se for o host, notificar todos os outros sobre a saída
+    if (isHost) {
+        peers.forEach((otherPeer) => {
+            if (otherPeer.conn) {
+                try {
+                    otherPeer.conn.send({ type: 'peer_saida', id: peerId });
+                } catch (e) {}
+            }
+        });
+    }
 }
 
 
@@ -226,18 +382,61 @@ joinRoomBtn.addEventListener('click', async () => {
     
     try {
         await startMedia();
-        peer = new Peer(); 
-        peer.on('open', () => {
-            const call = peer.call(roomCode, localStream);
+        isHost = false;
+        peer = new Peer(); // Random ID
+        
+        peer.on('open', (id) => {
+            console.log('Guest: ID do peer criado:', id);
             showCallView(roomCode);
-            setupCallHandlers(call);
+            
+            // Conectar ao Host via DataChannel
+            const hostConn = peer.connect(roomCode);
+            
+            // Adicionar o Host ao Map
+            peers.set(roomCode, { conn: hostConn, call: null, stream: null });
+            
+            hostConn.on('open', () => {
+                console.log('Guest: Conectado ao Host via DataChannel');
+                addParticipantToList(roomCode);
+                updateParticipantUI();
+                initiateCall(roomCode);
+            });
+            
+            hostConn.on('data', (data) => {
+                if (data.type === 'peers_list') {
+                    console.log('Guest: Recebeu lista de peers do Host:', data.ids);
+                    data.ids.forEach(pId => {
+                        initiateCall(pId);
+                    });
+                } else if (data.type === 'novo_peer') {
+                    console.log('Guest: Recebeu novo peer:', data.id);
+                    initiateCall(data.id);
+                } else if (data.type === 'sala_cheia') {
+                    console.log('Guest: Sala cheia, voltando ao setup.');
+                    errorMessage.innerText = 'A sala está cheia (máximo de 8 participantes).';
+                    endCall();
+                } else if (data.type === 'peer_saida') {
+                    console.log('Guest: Participante saiu da sala:', data.id);
+                    handlePeerDisconnect(data.id);
+                }
+            });
+            
+            hostConn.on('close', () => {
+                console.log('Guest: Conexão de dados com Host fechada.');
+                endCall();
+            });
+            
+            hostConn.on('error', (err) => {
+                console.error('Guest: Erro na conexão de dados com Host:', err);
+                endCall();
+            });
         });
-        peer.on('error', (err) => {
-            console.error('Erro no PeerJS:', err);
-            errorMessage.innerText = 'Não foi possível conectar. Verifique o código.';
-            showSetupView();
-       });
-    } catch (error) {}
+        
+        setupPeerCommonEvents();
+        
+    } catch (error) {
+        console.error('Erro ao entrar na sala:', error);
+    }
 });
 
 hangUpBtn.addEventListener('click', endCall);
@@ -276,13 +475,38 @@ function updateMuteButtonUI() {
 function endCall() {
     playSound('disconnect');
     stopTitleBlink();
-    if (currentCall) {
-        currentCall.close();
-        currentCall = null;
+    
+    // Fechar todas as conexões e chamadas
+    peers.forEach((peerObj) => {
+        if (peerObj.call) {
+            try { peerObj.call.close(); } catch (e) {}
+        }
+        if (peerObj.conn) {
+            try { peerObj.conn.close(); } catch (e) {}
+        }
+        if (peerObj.audioElement) {
+            try { peerObj.audioElement.remove(); } catch (e) {}
+        }
+        if (peerObj.listItemElement) {
+            try { peerObj.listItemElement.remove(); } catch (e) {}
+        }
+    });
+    peers.clear();
+
+    // Parar streams locais
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            try { track.stop(); } catch (e) {}
+        });
+        localStream = null;
     }
+
+    // Destruir peer local
     if (peer) {
-        peer.disconnect();
-        peer.destroy();
+        try {
+            peer.disconnect();
+            peer.destroy();
+        } catch (e) {}
         peer = null;
     }
 
@@ -296,20 +520,100 @@ function showView(viewToShow) {
 
 function showCallView(roomId) {
     roomIdDisplay.innerText = roomId;
-    // Reseta o estado do botão de mudo ao iniciar uma nova chamada
     isMuted = false;
     updateMuteButtonUI();
+    
+    // Mostrar a seção de participantes
+    const partSection = document.getElementById('participants-section');
+    if (partSection) {
+        partSection.style.display = 'block';
+    }
+    
+    // Limpar lista de participantes e adicionar a si mesmo
+    const list = document.getElementById('participant-list');
+    if (list) {
+        list.innerHTML = '';
+        const li = document.createElement('li');
+        li.className = 'participant-item fade-in';
+        const dot = document.createElement('span');
+        dot.className = 'status-dot';
+        const text = document.createElement('span');
+        const displayName = peer && peer.id ? peer.id.substring(0, 5) : 'Você';
+        text.innerText = `${displayName} (Você)`;
+        li.appendChild(dot);
+        li.appendChild(text);
+        list.appendChild(li);
+    }
+    
     showView(callSection);
-    startTitleBlink('📞 Vocal');
+    updateParticipantUI();
 }
 
 function showSetupView() {
     statusDiv.classList.add('status-waiting');
     statusDiv.classList.remove('status-connected');
     statusMessage.innerText = 'Aguardando outro participante';
-    remoteAudio.srcObject = null;
+    
+    // Esconder seção de participantes
+    const partSection = document.getElementById('participants-section');
+    if (partSection) {
+        partSection.style.display = 'none';
+    }
+    
     roomCodeInput.value = '';
     showView(setupSection);
+}
+
+// --- Funções Auxiliares de UI da Lista de Participantes ---
+
+function addParticipantToList(peerId) {
+    if (!peers.has(peerId)) return;
+    const peerObj = peers.get(peerId);
+    if (peerObj.listItemElement) return; // Já está na lista
+    
+    const list = document.getElementById('participant-list');
+    if (!list) return;
+    
+    const li = document.createElement('li');
+    li.className = 'participant-item';
+    
+    const dot = document.createElement('span');
+    dot.className = 'status-dot';
+    
+    const text = document.createElement('span');
+    const displayName = peerId.substring(0, 5);
+    text.innerText = displayName;
+    
+    li.appendChild(dot);
+    li.appendChild(text);
+    list.appendChild(li);
+    
+    peerObj.listItemElement = li;
+    
+    // Iniciar animação fade-in
+    setTimeout(() => {
+        li.classList.add('fade-in');
+    }, 50);
+}
+
+function updateParticipantUI() {
+    const totalParticipants = peers.size + 1;
+    const countDiv = document.getElementById('participant-count');
+    if (countDiv) {
+        countDiv.innerText = `${totalParticipants} / 8 participantes`;
+    }
+    
+    if (totalParticipants > 1) {
+        statusDiv.classList.remove('status-waiting');
+        statusDiv.classList.add('status-connected');
+        statusMessage.innerText = 'Conectado!';
+        stopTitleBlink();
+    } else {
+        statusDiv.classList.add('status-waiting');
+        statusDiv.classList.remove('status-connected');
+        statusMessage.innerText = 'Aguardando outro participante';
+        startTitleBlink('📞 Vocal');
+    }
 }
 
 // --- Registro do Service Worker ---
