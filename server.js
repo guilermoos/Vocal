@@ -25,8 +25,8 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 9000;
 server.listen(PORT, () => {
   console.log('==================================================');
-  console.log(`🎙️  Vocal - Servidor Local Iniciado!`);
-  console.log(`🌐 Interface: http://localhost:${PORT}`);
-  console.log(`🔌 PeerJS Server: http://localhost:${PORT}/peer`);
+  console.log('Vocal - Servidor Local Iniciado!');
+  console.log(`Interface: http://localhost:${PORT}`);
+  console.log(`PeerJS Server: http://localhost:${PORT}/peer`);
   console.log('==================================================');
 });

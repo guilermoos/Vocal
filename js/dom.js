@@ -70,7 +70,7 @@ export function updateMuteButtonUI() {
     
     const localNameSpan = document.getElementById('local-participant-name');
     if (localNameSpan) {
-        localNameSpan.innerText = state.isMuted ? `Você (${state.localName}) 🔇` : `Você (${state.localName})`;
+        localNameSpan.innerText = state.isMuted ? `Você (${state.localName}) (Mutado)` : `Você (${state.localName})`;
     }
 }
 
@@ -216,6 +216,6 @@ export function updateParticipantUI() {
                 hangUpTextSpan.innerText = 'Desligar';
             }
         }
-        startTitleBlink('📞 Vocal');
+        startTitleBlink('Aguardando - Vocal');
     }
 }
