@@ -124,11 +124,21 @@
         <!-- Seção da Chamada -->
         <section id="call-section" class="view">
             <header>
-                <div class="call-indicator">
-                    <div class="pulse-ring"></div>
-                    <span class="material-symbols-rounded header-call-icon">settings_voice</span>
+                <div class="header-call-title">
+                    <div class="call-indicator">
+                        <div class="pulse-ring"></div>
+                        <span class="material-symbols-rounded header-call-icon">settings_voice</span>
+                    </div>
+                    <h1>Em chamada</h1>
                 </div>
-                <h1>Em chamada</h1>
+                <div class="call-controls">
+                    <button id="toggle-mute-btn" class="btn btn-secondary" title="Mutar / Desmutar">
+                        <span class="material-symbols-rounded" id="mute-icon">mic</span>
+                    </button>
+                    <button id="hang-up-btn" class="btn btn-hangup" title="Desligar Chamada">
+                        <span class="material-symbols-rounded">call_end</span>
+                    </button>
+                </div>
             </header>
             
             <!-- Abas da Chamada -->
@@ -233,18 +243,6 @@
                         </button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Controles da Chamada (Permanentes) -->
-            <div class="call-controls">
-                <button id="toggle-mute-btn" class="btn btn-secondary" title="Mutar / Desmutar">
-                    <span class="material-symbols-rounded" id="mute-icon">mic</span>
-                    <span id="mute-btn-text">Mutar</span>
-                </button>
-                <button id="hang-up-btn" class="btn btn-hangup" title="Desligar Chamada">
-                    <span class="material-symbols-rounded">call_end</span>
-                    <span id="hang-up-btn-text">Desligar</span>
-                </button>
             </div>
         </section>
     </main>
