@@ -279,7 +279,7 @@ export function updateChatBadgeUI() {
     chatBadge.style.display = state.unreadCount > 0 ? 'block' : 'none';
 }
 
-export function appendChatMessage(senderName, text, type = 'user', senderId = null, media = null) {
+export function appendChatMessage(senderName, text, type = 'user', senderId = null, media = null, messageId = null) {
     if (!chatMessages) return;
     
     if (type === 'system') {
@@ -292,6 +292,10 @@ export function appendChatMessage(senderName, text, type = 'user', senderId = nu
         
         const wrapper = document.createElement('div');
         wrapper.className = `message-wrapper ${isOutgoing ? 'outgoing' : 'incoming'}`;
+        
+        // Atribui o ID da mensagem para sincronização
+        const msgId = messageId || 'msg-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        wrapper.dataset.messageId = msgId;
         
         if (!isOutgoing && senderName) {
             const senderDiv = document.createElement('div');
@@ -324,6 +328,16 @@ export function appendChatMessage(senderName, text, type = 'user', senderId = nu
         }
         
         chatMessages.appendChild(wrapper);
+
+        // --- Delete interaction (long press on outgoing messages) ---
+        if (isOutgoing) {
+            setupDeleteInteraction(wrapper);
+        }
+
+        // --- Heart reaction (double tap on incoming messages) ---
+        if (!isOutgoing) {
+            setupHeartReaction(wrapper);
+        }
         
         // Notificar se a mensagem veio de outra pessoa
         if (!isOutgoing) {
@@ -335,8 +349,242 @@ export function appendChatMessage(senderName, text, type = 'user', senderId = nu
         }
     }
     
-    // Auto-scroll para a última mensagem
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Auto-scroll: rola sempre se for mensagem nossa (outgoing),
+    // senão faz auto-scroll inteligente (se estiver perto do fim)
+    const isOutgoingMsg = senderId === state.peer?.id || senderId === 'me';
+    if (isOutgoingMsg && type !== 'system') {
+        scrollToBottom();
+    } else {
+        scrollToBottomIfNear();
+    }
+}
+
+/**
+ * Rola para o final do chat imediatamente.
+ */
+function scrollToBottom() {
+    if (!chatMessages) return;
+    chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+}
+
+/**
+ * Rola para o final do chat somente se o usuário estiver a menos de 80px do fim.
+ * Isso evita interromper o scroll manual quando o usuário está lendo mensagens antigas.
+ */
+function scrollToBottomIfNear() {
+    if (!chatMessages) return;
+    const threshold = 80;
+    const distanceFromBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight;
+    if (distanceFromBottom <= threshold) {
+        chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+    }
+}
+
+/**
+ * Configura o gesto de pressionar e segurar (long press) ou clique com botão direito (context menu) para apagar mensagens enviadas.
+ */
+function setupDeleteInteraction(wrapper) {
+    let pressTimer = null;
+    let didLongPress = false;
+
+    const startPress = (e) => {
+        didLongPress = false;
+        pressTimer = setTimeout(() => {
+            didLongPress = true;
+            showDeletePopup(wrapper, e);
+        }, 500);
+    };
+
+    const cancelPress = () => {
+        clearTimeout(pressTimer);
+    };
+
+    // Touch (mobile)
+    wrapper.addEventListener('touchstart', startPress, { passive: true });
+    wrapper.addEventListener('touchend', cancelPress);
+    wrapper.addEventListener('touchmove', cancelPress, { passive: true });
+
+    // Mouse (desktop - clique esquerdo longo)
+    wrapper.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+            startPress(e);
+        }
+    });
+    wrapper.addEventListener('mouseup', cancelPress);
+    wrapper.addEventListener('mouseleave', cancelPress);
+
+    // Clique com botão direito (desktop context menu) ou long press nativo no mobile
+    wrapper.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showDeletePopup(wrapper, e);
+    });
+}
+
+/**
+ * Exibe o popup de confirmação de exclusão acima da mensagem (ou abaixo, se estiver muito próximo ao topo).
+ */
+function showDeletePopup(wrapper, triggerEvent) {
+    // Evitar duplicatas
+    if (document.querySelector('.delete-popup')) return;
+
+    const popup = document.createElement('div');
+    popup.className = 'delete-popup';
+
+    // Se estiver muito próximo ao topo do container de chat, posiciona abaixo para não ser cortado
+    if (chatMessages) {
+        const rect = wrapper.getBoundingClientRect();
+        const chatRect = chatMessages.getBoundingClientRect();
+        const spaceAbove = rect.top - chatRect.top;
+        if (spaceAbove < 60) {
+            popup.classList.add('position-below');
+        }
+    }
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-popup-btn';
+    deleteBtn.innerHTML = '<span class="material-symbols-rounded">delete</span> Apagar mensagem';
+
+    deleteBtn.addEventListener('click', () => {
+        deleteMessage(wrapper);
+        popup.remove();
+    });
+
+    popup.appendChild(deleteBtn);
+    wrapper.style.position = 'relative';
+    wrapper.appendChild(popup);
+
+    // Fechar ao clicar fora
+    const closeOnOutside = (e) => {
+        if (!popup.contains(e.target) && e.target !== wrapper) {
+            popup.remove();
+            document.removeEventListener('click', closeOnOutside, true);
+            document.removeEventListener('touchstart', closeOnOutside, true);
+        }
+    };
+    setTimeout(() => {
+        document.addEventListener('click', closeOnOutside, true);
+        document.addEventListener('touchstart', closeOnOutside, true);
+    }, 50);
+}
+
+/**
+ * Remove visualmente o conteúdo de uma mensagem e substitui por "Mensagem apagada" localmente.
+ */
+export function deleteMessageLocally(wrapper) {
+    // Remover conteúdo existente (sender, mídia, bubble, popup), mas manter o wrapper e a reação
+    Array.from(wrapper.children).forEach(child => {
+        if (!child.classList.contains('message-sender') && !child.classList.contains('message-reaction') && !child.classList.contains('delete-popup')) {
+            child.classList.add('deleting');
+            setTimeout(() => child.remove(), 200);
+        }
+    });
+
+    // Remover qualquer popup de deleção pendente
+    const popup = wrapper.querySelector('.delete-popup');
+    if (popup) popup.remove();
+
+    setTimeout(() => {
+        if (!wrapper.querySelector('.message-deleted')) {
+            const deleted = document.createElement('div');
+            deleted.className = 'message-bubble message-deleted';
+            deleted.innerHTML = '<span class="material-symbols-rounded">do_not_disturb_on</span> Mensagem apagada';
+            wrapper.appendChild(deleted);
+        }
+    }, 220);
+}
+
+/**
+ * Apaga a mensagem localmente e notifica os outros participantes.
+ */
+function deleteMessage(wrapper) {
+    deleteMessageLocally(wrapper);
+    
+    // Notifica via peer connection usando importação dinâmica
+    const messageId = wrapper.dataset.messageId;
+    if (messageId) {
+        import('./peer-manager.js').then(module => {
+            module.notifyDeleteMessage(messageId);
+        });
+    }
+}
+
+/**
+ * Configura reação de coração com duplo clique/toque em mensagens recebidas.
+ */
+function setupHeartReaction(wrapper) {
+    let lastTap = 0;
+    let tapTimeout = null;
+
+    const handleDoubleTap = (e) => {
+        const now = Date.now();
+        const timeSinceLastTap = now - lastTap;
+
+        if (timeSinceLastTap < 350 && timeSinceLastTap > 0) {
+            // Double tap detected
+            clearTimeout(tapTimeout);
+            e.preventDefault();
+            toggleHeartReaction(wrapper);
+        } else {
+            tapTimeout = setTimeout(() => {}, 350);
+        }
+        lastTap = now;
+    };
+
+    wrapper.addEventListener('touchend', handleDoubleTap);
+    wrapper.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        toggleHeartReaction(wrapper);
+    });
+
+    // Evita seleção de texto no duplo clique (melhora a experiência no desktop)
+    wrapper.addEventListener('mousedown', (e) => {
+        if (e.detail > 1) {
+            e.preventDefault();
+        }
+    });
+}
+
+/**
+ * Altera o estado visual da reação de coração localmente.
+ */
+export function toggleHeartReactionLocally(wrapper, forceState = null) {
+    const existing = wrapper.querySelector('.message-reaction');
+    
+    if (forceState === true && existing) return;
+    if (forceState === false && !existing) return;
+
+    if (existing) {
+        existing.classList.add('reaction-removing');
+        setTimeout(() => existing.remove(), 250);
+        return;
+    }
+
+    const reaction = document.createElement('div');
+    reaction.className = 'message-reaction';
+    reaction.textContent = '❤️';
+    wrapper.appendChild(reaction);
+
+    // Animação de entrada com pop
+    requestAnimationFrame(() => {
+        reaction.classList.add('reaction-visible');
+    });
+}
+
+/**
+ * Adiciona ou remove a reação de coração numa mensagem e notifica os outros participantes.
+ */
+function toggleHeartReaction(wrapper) {
+    const existing = wrapper.querySelector('.message-reaction');
+    const hasReaction = !existing;
+
+    toggleHeartReactionLocally(wrapper);
+
+    const messageId = wrapper.dataset.messageId;
+    if (messageId) {
+        import('./peer-manager.js').then(module => {
+            module.notifyReactMessage(messageId, hasReaction);
+        });
+    }
 }
 
 function openMediaLightbox(src, isVideo) {

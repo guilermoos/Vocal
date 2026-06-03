@@ -37,7 +37,8 @@ function sendMediaInChunks(conn, payload) {
         mimeType: media.mimeType,
         senderName,
         senderId,
-        text: text || ''
+        text: text || '',
+        messageId: payload.messageId || null
     });
 
     // Send chunks sequentially with small delay to avoid overwhelming the channel
@@ -72,7 +73,8 @@ function handleMediaStart(data) {
         mimeType: data.mimeType,
         senderName: data.senderName,
         senderId: data.senderId,
-        text: data.text || ''
+        text: data.text || '',
+        messageId: data.messageId || null
     });
 }
 
@@ -93,7 +95,8 @@ function handleMediaChunk(data) {
             senderName: transfer.senderName,
             senderId: transfer.senderId,
             text: transfer.text,
-            media: { dataUrl, mimeType: transfer.mimeType }
+            media: { dataUrl, mimeType: transfer.mimeType },
+            messageId: transfer.messageId || null
         };
     }
     return null;
@@ -221,7 +224,7 @@ export function initializePeer(peerId) {
                 appendChatMessage(null, `${guestName} entrou na sala`, 'system');
             } else if (data.type === 'chat') {
                 console.log('Host: Recebeu mensagem de chat:', data.senderName, data.text);
-                appendChatMessage(data.senderName, data.text, 'user', conn.peer, null);
+                appendChatMessage(data.senderName, data.text, 'user', conn.peer, null, data.messageId);
                 
                 // Encaminhar texto para todos os outros guests
                 state.peers.forEach((peerObj, pId) => {
@@ -231,7 +234,8 @@ export function initializePeer(peerId) {
                                 type: 'chat', 
                                 text: data.text, 
                                 senderName: data.senderName, 
-                                senderId: conn.peer
+                                senderId: conn.peer,
+                                messageId: data.messageId
                             });
                         } catch (e) {}
                     }
@@ -242,7 +246,7 @@ export function initializePeer(peerId) {
                 const assembled = handleMediaChunk(data);
                 if (assembled) {
                     console.log('Host: Mídia recebida de:', assembled.senderName);
-                    appendChatMessage(assembled.senderName, assembled.text, 'user', conn.peer, assembled.media);
+                    appendChatMessage(assembled.senderName, assembled.text, 'user', conn.peer, assembled.media, assembled.messageId);
                     // Encaminhar mídia em chunks para todos os outros guests
                     state.peers.forEach((peerObj, pId) => {
                         if (pId !== conn.peer && peerObj.conn) {
@@ -251,12 +255,43 @@ export function initializePeer(peerId) {
                                     text: assembled.text,
                                     senderName: assembled.senderName,
                                     senderId: conn.peer,
-                                    media: assembled.media
+                                    media: assembled.media,
+                                    messageId: assembled.messageId
                                 });
                             } catch (e) {}
                         }
                     });
                 }
+            } else if (data.type === 'delete_message') {
+                const wrapper = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                if (wrapper) {
+                    import('./dom.js').then(module => {
+                        module.deleteMessageLocally(wrapper);
+                    });
+                }
+                // Encaminhar para todos os outros guests
+                state.peers.forEach((peerObj, pId) => {
+                    if (pId !== conn.peer && peerObj.conn) {
+                        try {
+                            peerObj.conn.send({ type: 'delete_message', messageId: data.messageId });
+                        } catch (e) {}
+                    }
+                });
+            } else if (data.type === 'react_message') {
+                const wrapper = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                if (wrapper) {
+                    import('./dom.js').then(module => {
+                        module.toggleHeartReactionLocally(wrapper, data.hasReaction);
+                    });
+                }
+                // Encaminhar para todos os outros guests
+                state.peers.forEach((peerObj, pId) => {
+                    if (pId !== conn.peer && peerObj.conn) {
+                        try {
+                            peerObj.conn.send({ type: 'react_message', messageId: data.messageId, hasReaction: data.hasReaction });
+                        } catch (e) {}
+                    }
+                });
             }
         });
 
@@ -443,14 +478,28 @@ export async function joinRoom(roomCode, nameToUse) {
                     removePeer(data.id);
                 } else if (data.type === 'chat') {
                     console.log('Guest: Recebeu mensagem de chat:', data.senderName, data.text);
-                    appendChatMessage(data.senderName, data.text, 'user', data.senderId, null);
+                    appendChatMessage(data.senderName, data.text, 'user', data.senderId, null, data.messageId);
                 } else if (data.type === 'media_start') {
                     handleMediaStart(data);
                 } else if (data.type === 'media_chunk') {
                     const assembled = handleMediaChunk(data);
                     if (assembled) {
                         console.log('Guest: Mídia recebida de:', assembled.senderName);
-                        appendChatMessage(assembled.senderName, assembled.text, 'user', assembled.senderId, assembled.media);
+                        appendChatMessage(assembled.senderName, assembled.text, 'user', assembled.senderId, assembled.media, assembled.messageId);
+                    }
+                } else if (data.type === 'delete_message') {
+                    const wrapper = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                    if (wrapper) {
+                        import('./dom.js').then(module => {
+                            module.deleteMessageLocally(wrapper);
+                        });
+                    }
+                } else if (data.type === 'react_message') {
+                    const wrapper = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                    if (wrapper) {
+                        import('./dom.js').then(module => {
+                            module.toggleHeartReactionLocally(wrapper, data.hasReaction);
+                        });
                     }
                 }
             });
@@ -533,8 +582,10 @@ export function sendChatMessage(text, media = null) {
     const trimmed = text ? text.trim() : '';
     if (!trimmed && !media) return;
     
+    const msgId = 'msg-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    
     // Exibir localmente sempre
-    appendChatMessage(state.localName, trimmed, 'user', 'me', media);
+    appendChatMessage(state.localName, trimmed, 'user', 'me', media, msgId);
 
     if (state.isHost) {
         // Enviar para todos os convidados
@@ -547,14 +598,16 @@ export function sendChatMessage(text, media = null) {
                             text: trimmed,
                             senderName: state.localName,
                             senderId: state.peer.id,
-                            media
+                            media,
+                            messageId: msgId
                         });
                     } else {
                         peerObj.conn.send({
                             type: 'chat',
                             text: trimmed,
                             senderName: state.localName,
-                            senderId: state.peer.id
+                            senderId: state.peer.id,
+                            messageId: msgId
                         });
                     }
                 } catch (e) {
@@ -572,18 +625,64 @@ export function sendChatMessage(text, media = null) {
                         text: trimmed,
                         senderName: state.localName,
                         senderId: state.peer?.id,
-                        media
+                        media,
+                        messageId: msgId
                     });
                 } else {
                     hostPeerObj.conn.send({
                         type: 'chat',
                         text: trimmed,
-                        senderName: state.localName
+                        senderName: state.localName,
+                        messageId: msgId
                     });
                 }
             } catch (e) {
                 console.error('Erro ao enviar mensagem:', e);
             }
+        }
+    }
+}
+
+/**
+ * Notifica a remoção de uma mensagem para os outros participantes da sala.
+ */
+export function notifyDeleteMessage(messageId) {
+    if (state.isHost) {
+        state.peers.forEach((peerObj) => {
+            if (peerObj.conn) {
+                try {
+                    peerObj.conn.send({ type: 'delete_message', messageId });
+                } catch (e) {}
+            }
+        });
+    } else {
+        const hostPeerObj = state.peers.get(state.targetRoomCode);
+        if (hostPeerObj && hostPeerObj.conn) {
+            try {
+                hostPeerObj.conn.send({ type: 'delete_message', messageId });
+            } catch (e) {}
+        }
+    }
+}
+
+/**
+ * Notifica a reação a uma mensagem para os outros participantes da sala.
+ */
+export function notifyReactMessage(messageId, hasReaction) {
+    if (state.isHost) {
+        state.peers.forEach((peerObj) => {
+            if (peerObj.conn) {
+                try {
+                    peerObj.conn.send({ type: 'react_message', messageId, hasReaction });
+                } catch (e) {}
+            }
+        });
+    } else {
+        const hostPeerObj = state.peers.get(state.targetRoomCode);
+        if (hostPeerObj && hostPeerObj.conn) {
+            try {
+                hostPeerObj.conn.send({ type: 'react_message', messageId, hasReaction });
+            } catch (e) {}
         }
     }
 }
