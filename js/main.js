@@ -32,10 +32,15 @@ import {
     
     // Functions
     showPanel,
-    updateMuteButtonUI
+    updateMuteButtonUI,
+    showTab,
+    tabCallBtn,
+    tabChatBtn,
+    chatMessageInput,
+    sendChatBtn
 } from './dom.js';
 import { generateRandomCode, setupClipboardCopy } from './utils.js';
-import { initializePeer, joinRoom, startMedia, endCall } from './peer-manager.js';
+import { initializePeer, joinRoom, startMedia, endCall, sendChatMessage } from './peer-manager.js';
 
 // --- Listeners de Input para Validar/Habilitar Botões ---
 
@@ -182,6 +187,44 @@ if (urlRoom && /^\d{5}$/.test(urlRoom)) {
     }
 } else {
     showPanel(panelMain);
+}
+
+// --- Listeners de Eventos do Chat ---
+
+if (tabCallBtn) {
+    tabCallBtn.addEventListener('click', () => showTab('call'));
+}
+
+if (tabChatBtn) {
+    tabChatBtn.addEventListener('click', () => showTab('chat'));
+}
+
+if (chatMessageInput) {
+    chatMessageInput.addEventListener('input', () => {
+        const hasText = chatMessageInput.value.trim().length > 0;
+        sendChatBtn.disabled = !hasText;
+    });
+}
+
+const performSendChat = () => {
+    const text = chatMessageInput.value;
+    if (!text.trim()) return;
+    sendChatMessage(text);
+    chatMessageInput.value = '';
+    sendChatBtn.disabled = true;
+};
+
+if (sendChatBtn) {
+    sendChatBtn.addEventListener('click', performSendChat);
+}
+
+if (chatMessageInput) {
+    chatMessageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performSendChat();
+        }
+    });
 }
 
 // --- Registro do Service Worker ---

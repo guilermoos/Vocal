@@ -4,7 +4,8 @@ import {
     showCallView, 
     showSetupView, 
     addParticipantToList, 
-    updateParticipantUI 
+    updateParticipantUI,
+    appendChatMessage
 } from './dom.js';
 import { playSound, stopTitleBlink } from './audio.js';
 import { generateRandomCode } from './utils.js';
@@ -126,6 +127,26 @@ export function initializePeer(peerId) {
                 
                 addParticipantToList(conn.peer);
                 updateParticipantUI();
+                
+                // Sistema: Notificar entrada no chat
+                appendChatMessage(null, `${guestName} entrou na sala`, 'system');
+            } else if (data.type === 'chat') {
+                console.log('Host: Recebeu mensagem de chat:', data.senderName, data.text);
+                appendChatMessage(data.senderName, data.text, 'user', conn.peer);
+                
+                // Encaminhar para todos os outros guests
+                state.peers.forEach((peerObj, pId) => {
+                    if (pId !== conn.peer && peerObj.conn) {
+                        try {
+                            peerObj.conn.send({ 
+                                type: 'chat', 
+                                text: data.text, 
+                                senderName: data.senderName, 
+                                senderId: conn.peer 
+                            });
+                        } catch (e) {}
+                    }
+                });
             }
         });
 
@@ -225,6 +246,10 @@ export function removePeer(peerId) {
         }, 500);
     }
     
+    // Sistema: Notificar saída no chat
+    const leavingName = peerObj.name || peerId.substring(0, 5);
+    appendChatMessage(null, `${leavingName} saiu da sala`, 'system');
+    
     state.peers.delete(peerId);
     updateParticipantUI();
     playSound('disconnect');
@@ -281,6 +306,9 @@ export async function joinRoom(roomCode, nameToUse) {
                         initiateCall(p.id);
                     });
                     updateParticipantUI();
+                    
+                    // Sistema: Notificar entrada no chat
+                    appendChatMessage(null, 'Você entrou na sala', 'system');
                 } else if (data.type === 'novo_peer') {
                     console.log('Guest: Recebeu novo peer:', data.id, data.name);
                     const peerId = data.id;
@@ -293,6 +321,9 @@ export async function joinRoom(roomCode, nameToUse) {
                     addParticipantToList(peerId);
                     updateParticipantUI();
                     initiateCall(peerId);
+                    
+                    // Sistema: Notificar entrada no chat
+                    appendChatMessage(null, `${peerName} entrou na sala`, 'system');
                 } else if (data.type === 'sala_cheia') {
                     console.log('Guest: Sala cheia, voltando ao setup.');
                     errorMessage.innerText = 'A sala está cheia (máximo de 8 participantes).';
@@ -300,6 +331,9 @@ export async function joinRoom(roomCode, nameToUse) {
                 } else if (data.type === 'peer_saiu') {
                     console.log('Guest: Participante saiu da sala:', data.id);
                     removePeer(data.id);
+                } else if (data.type === 'chat') {
+                    console.log('Guest: Recebeu mensagem de chat:', data.senderName, data.text);
+                    appendChatMessage(data.senderName, data.text, 'user', data.senderId);
                 }
             });
             
@@ -375,4 +409,43 @@ export function endCall() {
     }
 
     showSetupView();
+}
+
+export function sendChatMessage(text) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    
+    if (state.isHost) {
+        // Exibir localmente
+        appendChatMessage(state.localName, trimmed, 'user', 'me');
+        
+        // Enviar para todos os convidados
+        state.peers.forEach((peerObj) => {
+            if (peerObj.conn) {
+                try {
+                    peerObj.conn.send({
+                        type: 'chat',
+                        text: trimmed,
+                        senderName: state.localName,
+                        senderId: state.peer.id
+                    });
+                } catch (e) {}
+            }
+        });
+    } else {
+        // Exibir localmente
+        appendChatMessage(state.localName, trimmed, 'user', 'me');
+        
+        // Enviar para o host
+        const hostPeerObj = state.peers.get(state.targetRoomCode);
+        if (hostPeerObj && hostPeerObj.conn) {
+            try {
+                hostPeerObj.conn.send({
+                    type: 'chat',
+                    text: trimmed,
+                    senderName: state.localName
+                });
+            } catch (e) {}
+        }
+    }
 }

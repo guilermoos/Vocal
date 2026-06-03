@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { stopTitleBlink, startTitleBlink } from './audio.js';
+import { stopTitleBlink, startTitleBlink, playChatChime } from './audio.js';
 
 // --- Seleção de Elementos do DOM ---
 export const setupSection = document.getElementById('setup-section');
@@ -44,6 +44,16 @@ export const linkRoomCodeDisplay = document.getElementById('link-room-code-displ
 export const shareLinkDisplay = document.getElementById('share-link-display');
 export const copyShareLinkBtn = document.getElementById('copy-share-link-btn');
 
+// Chat Elements
+export const tabCallBtn = document.getElementById('tab-call-btn');
+export const tabChatBtn = document.getElementById('tab-chat-btn');
+export const chatBadge = document.getElementById('chat-badge');
+export const callTabContent = document.getElementById('call-tab-content');
+export const chatTabContent = document.getElementById('chat-tab-content');
+export const chatMessages = document.getElementById('chat-messages');
+export const chatMessageInput = document.getElementById('chat-message-input');
+export const sendChatBtn = document.getElementById('send-chat-btn');
+
 // --- Funções de UI ---
 
 export function showPanel(panel) {
@@ -75,6 +85,12 @@ export function updateMuteButtonUI() {
 }
 
 export function showCallView(roomId) {
+    // Resetar abas e mensagens do chat
+    showTab('call');
+    if (chatMessages) chatMessages.innerHTML = '';
+    state.unreadCount = 0;
+    updateChatBadgeUI();
+
     roomIdDisplay.innerText = roomId;
     state.isMuted = false;
     updateMuteButtonUI();
@@ -218,4 +234,77 @@ export function updateParticipantUI() {
         }
         startTitleBlink('Aguardando - Vocal');
     }
+}
+
+// --- Funções do Chat ---
+
+export function showTab(tabName) {
+    state.activeTab = tabName;
+    if (tabName === 'call') {
+        tabCallBtn.classList.add('active');
+        tabChatBtn.classList.remove('active');
+        callTabContent.style.display = 'block';
+        chatTabContent.style.display = 'none';
+    } else if (tabName === 'chat') {
+        tabCallBtn.classList.remove('active');
+        tabChatBtn.classList.add('active');
+        callTabContent.style.display = 'none';
+        chatTabContent.style.display = 'block';
+        
+        // Limpar notificações do badge ao abrir o chat
+        state.unreadCount = 0;
+        updateChatBadgeUI();
+        
+        // Focar no campo de entrada do chat
+        if (chatMessageInput) {
+            setTimeout(() => chatMessageInput.focus(), 50);
+        }
+    }
+}
+
+export function updateChatBadgeUI() {
+    if (!chatBadge) return;
+    chatBadge.style.display = state.unreadCount > 0 ? 'block' : 'none';
+}
+
+export function appendChatMessage(senderName, text, type = 'user', senderId = null) {
+    if (!chatMessages) return;
+    
+    if (type === 'system') {
+        const sysDiv = document.createElement('div');
+        sysDiv.className = 'message-system';
+        sysDiv.innerText = text;
+        chatMessages.appendChild(sysDiv);
+    } else {
+        const isOutgoing = senderId === state.peer?.id || senderId === 'me';
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = `message-wrapper ${isOutgoing ? 'outgoing' : 'incoming'}`;
+        
+        if (!isOutgoing && senderName) {
+            const senderDiv = document.createElement('div');
+            senderDiv.className = 'message-sender';
+            senderDiv.innerText = senderName;
+            wrapper.appendChild(senderDiv);
+        }
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        bubble.innerText = text;
+        wrapper.appendChild(bubble);
+        
+        chatMessages.appendChild(wrapper);
+        
+        // Notificar se a mensagem veio de outra pessoa
+        if (!isOutgoing) {
+            if (state.activeTab === 'call') {
+                state.unreadCount++;
+                updateChatBadgeUI();
+            }
+            playChatChime();
+        }
+    }
+    
+    // Auto-scroll para a última mensagem
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }

@@ -131,56 +131,87 @@
                 <h1>Em chamada</h1>
             </header>
             
-            <div class="room-info">
-                <div class="room-info-row">
-                    <span>Código da Sala</span>
-                    <div class="code-display">
-                        <code id="room-id-display"></code>
-                        <button id="copy-room-id-btn" class="copy-btn-container" title="Copiar código">
-                            <span class="material-symbols-rounded">content_copy</span>
-                            <span id="copy-feedback" class="copy-feedback-class">Copiado!</span>
+            <!-- Abas da Chamada -->
+            <div class="call-tabs">
+                <button id="tab-call-btn" class="tab-btn active">
+                    <span class="material-symbols-rounded">call</span>
+                    Chamada
+                </button>
+                <button id="tab-chat-btn" class="tab-btn">
+                    <span class="material-symbols-rounded">chat</span>
+                    Chat
+                    <span id="chat-badge" class="chat-badge" style="display: none;"></span>
+                </button>
+            </div>
+
+            <!-- Conteúdo da Aba Chamada -->
+            <div id="call-tab-content">
+                <div class="room-info">
+                    <div class="room-info-row">
+                        <span>Código da Sala</span>
+                        <div class="code-display">
+                            <code id="room-id-display"></code>
+                            <button id="copy-room-id-btn" class="copy-btn-container" title="Copiar código">
+                                <span class="material-symbols-rounded">content_copy</span>
+                                <span id="copy-feedback" class="copy-feedback-class">Copiado!</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="room-info-row" id="share-link-row">
+                        <span>Link de Convite</span>
+                        <div class="code-display">
+                            <code id="share-link-display"></code>
+                            <button id="copy-share-link-btn" class="copy-btn-container" title="Copiar link">
+                                <span class="material-symbols-rounded">link</span>
+                                <span id="copy-share-feedback" class="copy-feedback-class">Copiado!</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visualizador Wave Animado -->
+                <div class="voice-wave-container">
+                    <div class="voice-wave" id="voice-wave-bars">
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                    </div>
+                </div>
+
+                <div id="status" class="status-waiting">
+                    <p id="status-message">Aguardando outro participante</p>
+                    <div class="dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+
+                <!-- Seção de Participantes da Sala -->
+                <div id="participants-section" style="display: none;">
+                    <div id="participant-count">1 / 8 participantes</div>
+                    <ul id="participant-list"></ul>
+                </div>
+            </div>
+
+            <!-- Conteúdo da Aba Chat -->
+            <div id="chat-tab-content" style="display: none;">
+                <div class="chat-container">
+                    <div id="chat-messages">
+                        <!-- Mensagens enviadas em tempo real -->
+                    </div>
+                    <div class="chat-input-row">
+                        <input type="text" id="chat-message-input" placeholder="Digite uma mensagem..." maxlength="200">
+                        <button id="send-chat-btn" class="send-btn" disabled>
+                            <span class="material-symbols-rounded">send</span>
                         </button>
                     </div>
                 </div>
-                <div class="room-info-row" id="share-link-row">
-                    <span>Link de Convite</span>
-                    <div class="code-display">
-                        <code id="share-link-display"></code>
-                        <button id="copy-share-link-btn" class="copy-btn-container" title="Copiar link">
-                            <span class="material-symbols-rounded">link</span>
-                            <span id="copy-share-feedback" class="copy-feedback-class">Copiado!</span>
-                        </button>
-                    </div>
-                </div>
             </div>
 
-            <!-- Visualizador Wave Animado -->
-            <div class="voice-wave-container">
-                <div class="voice-wave" id="voice-wave-bars">
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                </div>
-            </div>
-
-            <div id="status" class="status-waiting">
-                <p id="status-message">Aguardando outro participante</p>
-                <div class="dots">
-                    <span></span><span></span><span></span>
-                </div>
-            </div>
-
-            <!-- Seção de Participantes da Sala -->
-            <div id="participants-section" style="display: none;">
-                <div id="participant-count">1 / 8 participantes</div>
-                <ul id="participant-list"></ul>
-            </div>
-
-            <!-- Controles da Chamada -->
+            <!-- Controles da Chamada (Permanentes) -->
             <div class="call-controls">
                 <button id="toggle-mute-btn" class="btn btn-secondary" title="Mutar / Desmutar">
                     <span class="material-symbols-rounded" id="mute-icon">mic</span>

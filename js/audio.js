@@ -108,3 +108,14 @@ export function stopTitleBlink() {
     }
     document.title = "Vocal";
 }
+
+export function playChatChime() {
+    try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        playNote(587.33, now, 0.08, 0.08); // D5
+        playNote(880, now + 0.06, 0.15, 0.08); // A5
+    } catch (err) {
+        console.error('Erro ao reproduzir chime do chat:', err);
+    }
+}
