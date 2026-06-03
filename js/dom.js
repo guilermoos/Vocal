@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { stopTitleBlink, startTitleBlink, playChatChime } from './audio.js';
+import { stopTitleBlink, startTitleBlink, playChatChime, startVoiceVisualizer, stopVoiceVisualizer } from './audio.js';
 
 // --- Seleção de Elementos do DOM ---
 export const setupSection = document.getElementById('setup-section');
@@ -125,6 +125,9 @@ export function showCallView(roomId) {
     
     showView(callSection);
     updateParticipantUI();
+    if (state.localStream) {
+        startVoiceVisualizer(state.localStream);
+    }
 }
 
 export function showSetupView() {
@@ -157,6 +160,7 @@ export function showSetupView() {
     // Limpar o parâmetro de busca na URL ao voltar para a tela inicial
     window.history.replaceState({}, document.title, window.location.pathname);
     
+    stopVoiceVisualizer();
     showPanel(panelMain);
     showView(setupSection);
 }

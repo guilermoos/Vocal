@@ -156,32 +156,7 @@
     border-radius: 4px;
 }
 
-/* Animations for Voice Wave utilizing :has() */
-#call-section:has(.status-connected) .voice-wave .bar {
-    animation: bounce-bar 0.8s infinite ease-in-out alternate;
-}
 
-#call-section:has(.status-waiting) .voice-wave .bar {
-    animation: breath-bar 2s infinite ease-in-out alternate;
-}
-
-@keyframes bounce-bar {
-    0% { height: 6px; }
-    100% { height: 42px; }
-}
-
-@keyframes breath-bar {
-    0% { height: 6px; }
-    100% { height: 16px; }
-}
-
-.voice-wave .bar:nth-child(1) { animation-delay: 0.15s; }
-.voice-wave .bar:nth-child(2) { animation-delay: 0.45s; }
-.voice-wave .bar:nth-child(3) { animation-delay: 0.25s; }
-.voice-wave .bar:nth-child(4) { animation-delay: 0.65s; }
-.voice-wave .bar:nth-child(5) { animation-delay: 0.35s; }
-.voice-wave .bar:nth-child(6) { animation-delay: 0.55s; }
-.voice-wave .bar:nth-child(7) { animation-delay: 0.20s; }
 
 /* --- Call Status UI --- */
 #status {
@@ -351,12 +326,12 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 0;
     padding: 0;
-    gap: 1.5rem;
+    gap: 0;
     margin-bottom: 1rem;
 }
 
 .tab-btn {
-    flex: none;
+    flex: 1;
     background: transparent;
     border: none;
     color: var(--text-secondary);

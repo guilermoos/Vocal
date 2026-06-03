@@ -119,3 +119,69 @@ export function playChatChime() {
         console.error('Erro ao reproduzir chime do chat:', err);
     }
 }
+
+let visualizerRequestRef = null;
+let visualizerSource = null;
+let visualizerAnalyser = null;
+
+export function startVoiceVisualizer(stream) {
+    try {
+        stopVoiceVisualizer(); // Ensure any existing loop is stopped
+        
+        const ctx = getAudioContext();
+        
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+        
+        visualizerAnalyser = ctx.createAnalyser();
+        visualizerAnalyser.fftSize = 32; // small FFT size for 7 bars
+        
+        visualizerSource = ctx.createMediaStreamSource(stream);
+        visualizerSource.connect(visualizerAnalyser);
+        
+        const bufferLength = visualizerAnalyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        const bars = document.querySelectorAll('#voice-wave-bars .bar');
+        if (bars.length === 0) return;
+        
+        function draw() {
+            if (!visualizerAnalyser) return;
+            visualizerRequestRef = requestAnimationFrame(draw);
+            
+            visualizerAnalyser.getByteFrequencyData(dataArray);
+            
+            for (let i = 0; i < bars.length; i++) {
+                const dataIndex = Math.min(i + 1, bufferLength - 1);
+                const value = dataArray[dataIndex];
+                const percent = value / 255;
+                const height = 6 + percent * 36; // scales from 6px to 42px
+                bars[i].style.height = `${height}px`;
+            }
+        }
+        
+        draw();
+    } catch (err) {
+        console.error('Erro ao iniciar visualizador de voz:', err);
+    }
+}
+
+export function stopVoiceVisualizer() {
+    if (visualizerRequestRef) {
+        cancelAnimationFrame(visualizerRequestRef);
+        visualizerRequestRef = null;
+    }
+    
+    if (visualizerSource) {
+        try { visualizerSource.disconnect(); } catch (e) {}
+        visualizerSource = null;
+    }
+    
+    visualizerAnalyser = null;
+    
+    const bars = document.querySelectorAll('#voice-wave-bars .bar');
+    bars.forEach(bar => {
+        bar.style.height = '6px';
+    });
+}
