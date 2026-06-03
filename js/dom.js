@@ -243,13 +243,13 @@ export function showTab(tabName) {
     if (tabName === 'call') {
         tabCallBtn.classList.add('active');
         tabChatBtn.classList.remove('active');
-        callTabContent.style.display = 'block';
+        callTabContent.style.display = 'flex';
         chatTabContent.style.display = 'none';
     } else if (tabName === 'chat') {
         tabCallBtn.classList.remove('active');
         tabChatBtn.classList.add('active');
         callTabContent.style.display = 'none';
-        chatTabContent.style.display = 'block';
+        chatTabContent.style.display = 'flex';
         
         // Limpar notificações do badge ao abrir o chat
         state.unreadCount = 0;

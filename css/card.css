@@ -1,42 +1,67 @@
-/* Glassmorphic card container */
-.card {
-    background: var(--surface);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+/* App Container layout framework */
+.app-container {
     width: 100%;
-    max-width: 420px;
-    min-height: 480px;
-    padding: 2.75rem 2.25rem;
-    border-radius: 24px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5), 
-                0 0 40px rgba(0, 170, 255, 0.03);
-    position: relative;
-    overflow: hidden;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+    padding: 1rem;
+    position: relative;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
-.card::before {
+.app-container::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
 }
 
 .view {
     display: none;
     flex-direction: column;
-    gap: 2rem;
-    flex-grow: 1;
     animation: fadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    box-sizing: border-box;
 }
 
 .view.active {
     display: flex;
+}
+
+/* Glassmorphic box for setup section */
+#setup-section {
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    width: 100%;
+    max-width: 420px;
+    padding: 2.75rem 2.25rem;
+    border-radius: 24px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5), 
+                0 0 40px rgba(0, 170, 255, 0.03);
+    gap: 2rem;
+}
+
+/* Glassmorphic container for call section */
+#call-section {
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    width: 100%;
+    height: 100%;
+    padding: 1.5rem;
+    border-radius: 24px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5);
+    gap: 1.5rem;
+    justify-content: space-between;
 }
 
 @keyframes fadeIn {
