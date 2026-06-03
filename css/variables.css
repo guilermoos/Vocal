@@ -1,0 +1,17 @@
+:root {
+    --background: #090d16;
+    --surface: rgba(15, 23, 42, 0.45);
+    --surface-solid: #0f172a;
+    --primary: hsl(210, 100%, 55%);
+    --primary-hover: hsl(210, 100%, 48%);
+    --danger: hsl(354, 100%, 63%);
+    --danger-hover: hsl(354, 100%, 56%);
+    --secondary: rgba(255, 255, 255, 0.06);
+    --secondary-hover: rgba(255, 255, 255, 0.12);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border-color: rgba(255, 255, 255, 0.08);
+    
+    --font-title: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'Inter', sans-serif;
+}

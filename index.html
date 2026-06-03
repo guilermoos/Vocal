@@ -2,22 +2,23 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <!-- Adicionado bloqueio de zoom -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vocal - Chamada de Áudio P2P</title>
     
     <!-- PWA Configs -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#00aaff">
+    <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Vocal">
     <link rel="apple-touch-icon" href="icon-192.png">
     
-    <!-- Fontes e Estilos -->
+    <!-- Google Fonts & Google Icons (Material Symbols Rounded) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
+    
     <link rel="stylesheet" href="style.css">
     
     <!-- PeerJS -->
@@ -25,25 +26,32 @@
 </head>
 <body>
     <div class="background-animation"></div>
+    <div class="glow-container">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
 
     <main class="card">
         <!-- Seção de Conexão (Setup) -->
         <section id="setup-section" class="view active">
             <header>
+                <div class="logo-container">
+                    <span class="material-symbols-rounded logo-icon">spatial_audio</span>
+                </div>
                 <h1>Vocal</h1>
-                <p class="subtitle">Chamadas de áudio simples e seguras.</p>
+                <p class="subtitle">Chamadas de áudio simples, diretas e seguras.</p>
             </header>
             
             <!-- Painel 1: Menu Principal -->
             <div id="panel-main" class="setup-panel">
                 <div class="actions">
                     <button id="btn-go-create" class="btn btn-primary">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+                        <span class="material-symbols-rounded">add_circle</span>
                         Criar uma Sala
                     </button>
                     <div class="separator">ou</div>
                     <button id="btn-go-join" class="btn btn-secondary">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <span class="material-symbols-rounded">login</span>
                         Entrar com Código
                     </button>
                 </div>
@@ -52,18 +60,30 @@
             <!-- Painel 2: Criar Sala (Nome) -->
             <div id="panel-create" class="setup-panel" style="display: none;">
                 <div class="actions">
-                    <input type="text" id="create-name-input" placeholder="Seu nome" maxlength="20">
+                    <div class="input-wrapper">
+                        <span class="material-symbols-rounded input-icon">person</span>
+                        <input type="text" id="create-name-input" placeholder="Seu nome" maxlength="20">
+                    </div>
                     <button id="create-room-btn" class="btn btn-primary" disabled>Criar Sala</button>
-                    <button id="btn-back-to-main-from-create" class="btn btn-secondary">Voltar</button>
+                    <button id="btn-back-to-main-from-create" class="btn btn-secondary">
+                        <span class="material-symbols-rounded">arrow_back</span>
+                        Voltar
+                    </button>
                 </div>
             </div>
 
             <!-- Painel 3: Entrar com Código - Passo 1 (Código) -->
             <div id="panel-join-code" class="setup-panel" style="display: none;">
                 <div class="actions">
-                    <input type="text" id="room-code-input" placeholder="Código da sala (5 dígitos)" maxlength="5">
+                    <div class="input-wrapper">
+                        <span class="material-symbols-rounded input-icon">key</span>
+                        <input type="text" id="room-code-input" placeholder="Código da sala (5 dígitos)" maxlength="5">
+                    </div>
                     <button id="join-code-next-btn" class="btn btn-primary" disabled>Avançar</button>
-                    <button id="btn-back-to-main-from-join" class="btn btn-secondary">Voltar</button>
+                    <button id="btn-back-to-main-from-join" class="btn btn-secondary">
+                        <span class="material-symbols-rounded">arrow_back</span>
+                        Voltar
+                    </button>
                 </div>
             </div>
 
@@ -71,9 +91,15 @@
             <div id="panel-join-name" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <p class="panel-info">Código da Sala: <strong id="joining-room-code-display"></strong></p>
-                    <input type="text" id="join-name-input" placeholder="Seu nome" maxlength="20">
-                    <button id="join-room-btn" class="btn" disabled>Entrar na Sala</button>
-                    <button id="btn-back-to-code" class="btn btn-secondary">Voltar</button>
+                    <div class="input-wrapper">
+                        <span class="material-symbols-rounded input-icon">person</span>
+                        <input type="text" id="join-name-input" placeholder="Seu nome" maxlength="20">
+                    </div>
+                    <button id="join-room-btn" class="btn btn-primary" disabled>Entrar na Sala</button>
+                    <button id="btn-back-to-code" class="btn btn-secondary">
+                        <span class="material-symbols-rounded">arrow_back</span>
+                        Voltar
+                    </button>
                 </div>
             </div>
 
@@ -81,9 +107,15 @@
             <div id="panel-link-join" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <p class="panel-info">Entrando na sala: <strong id="link-room-code-display"></strong></p>
-                    <input type="text" id="link-name-input" placeholder="Seu nome" maxlength="20">
+                    <div class="input-wrapper">
+                        <span class="material-symbols-rounded input-icon">person</span>
+                        <input type="text" id="link-name-input" placeholder="Seu nome" maxlength="20">
+                    </div>
                     <button id="link-join-confirm-btn" class="btn btn-primary" disabled>Entrar na Sala</button>
-                    <button id="btn-cancel-link-join" class="btn btn-secondary">Voltar ao Menu</button>
+                    <button id="btn-cancel-link-join" class="btn btn-secondary">
+                        <span class="material-symbols-rounded">arrow_back</span>
+                        Voltar ao Menu
+                    </button>
                 </div>
             </div>
             <p id="error-message" class="error"></p>
@@ -91,30 +123,47 @@
 
         <!-- Seção da Chamada -->
         <section id="call-section" class="view">
-             <header>
+            <header>
+                <div class="call-indicator">
+                    <div class="pulse-ring"></div>
+                    <span class="material-symbols-rounded header-call-icon">settings_voice</span>
+                </div>
                 <h1>Em chamada</h1>
             </header>
             
             <div class="room-info">
                 <div class="room-info-row">
-                    <span>Código da Sala:</span>
+                    <span>Código da Sala</span>
                     <div class="code-display">
                         <code id="room-id-display"></code>
                         <button id="copy-room-id-btn" class="copy-btn-container" title="Copiar código">
-                            <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span class="material-symbols-rounded">content_copy</span>
                             <span id="copy-feedback" class="copy-feedback-class">Copiado!</span>
                         </button>
                     </div>
                 </div>
-                <div class="room-info-row" id="share-link-row" style="margin-top: 0.75rem;">
-                    <span>Link de Convite:</span>
+                <div class="room-info-row" id="share-link-row">
+                    <span>Link de Convite</span>
                     <div class="code-display">
-                        <code id="share-link-display" style="font-size: 0.85rem; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></code>
+                        <code id="share-link-display"></code>
                         <button id="copy-share-link-btn" class="copy-btn-container" title="Copiar link">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path></svg>
+                            <span class="material-symbols-rounded">link</span>
                             <span id="copy-share-feedback" class="copy-feedback-class">Copiado!</span>
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Visualizador Wave Animado -->
+            <div class="voice-wave-container">
+                <div class="voice-wave" id="voice-wave-bars">
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
                 </div>
             </div>
 
@@ -125,30 +174,26 @@
                 </div>
             </div>
 
-            <!-- Seção de Participantes da Sala (Mesh P2P) -->
+            <!-- Seção de Participantes da Sala -->
             <div id="participants-section" style="display: none;">
                 <div id="participant-count">1 / 8 participantes</div>
                 <ul id="participant-list"></ul>
             </div>
 
-            <!-- NOVO: Contêiner para os botões de controle -->
+            <!-- Controles da Chamada -->
             <div class="call-controls">
                 <button id="toggle-mute-btn" class="btn btn-secondary" title="Mutar / Desmutar">
-                    <!-- Ícone de microfone ligado -->
-                    <svg id="mic-on-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                    <!-- Ícone de microfone desligado -->
-                    <svg id="mic-off-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                    <span class="material-symbols-rounded" id="mute-icon">mic</span>
                     <span id="mute-btn-text">Mutar</span>
                 </button>
-                <button id="hang-up-btn" class="btn btn-hangup">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                <button id="hang-up-btn" class="btn btn-hangup" title="Desligar Chamada">
+                    <span class="material-symbols-rounded">call_end</span>
                     <span id="hang-up-btn-text">Desligar</span>
                 </button>
             </div>
-
         </section>
     </main>
 
-    <script src="script.js"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>

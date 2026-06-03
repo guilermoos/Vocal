@@ -1,0 +1,338 @@
+/* --- Call Section UI --- */
+.call-indicator {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.25rem;
+}
+
+.header-call-icon {
+    font-size: 28px !important;
+    color: var(--primary);
+    z-index: 2;
+}
+
+.pulse-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background-color: rgba(59, 130, 246, 0.15);
+    animation: ring-pulse 2s infinite ease-out;
+}
+
+@keyframes ring-pulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+.room-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.room-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.room-info-row > span {
+    font-family: var(--font-title);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.code-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(15, 23, 42, 0.5);
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    max-width: 60%;
+}
+
+#room-id-display, #share-link-display {
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.copy-btn-container {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.2s ease;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.copy-btn-container:hover {
+    color: var(--primary);
+}
+
+.copy-btn-container .material-symbols-rounded {
+    font-size: 18px;
+}
+
+.copy-feedback-class {
+    position: absolute;
+    bottom: 140%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--primary);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-family: var(--font-body);
+    font-weight: 500;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.copied .copy-feedback-class {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-2px);
+}
+
+/* --- Animated Voice Wave --- */
+.voice-wave-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 50px;
+    margin: 0.5rem 0;
+}
+
+.voice-wave {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+}
+
+.voice-wave .bar {
+    width: 4px;
+    height: 6px;
+    background: linear-gradient(180deg, var(--primary) 0%, #3b82f6 100%);
+    border-radius: 4px;
+}
+
+/* Animations for Voice Wave utilizing :has() */
+#call-section:has(.status-connected) .voice-wave .bar {
+    animation: bounce-bar 0.8s infinite ease-in-out alternate;
+}
+
+#call-section:has(.status-waiting) .voice-wave .bar {
+    animation: breath-bar 2s infinite ease-in-out alternate;
+}
+
+@keyframes bounce-bar {
+    0% { height: 6px; }
+    100% { height: 42px; }
+}
+
+@keyframes breath-bar {
+    0% { height: 6px; }
+    100% { height: 16px; }
+}
+
+.voice-wave .bar:nth-child(1) { animation-delay: 0.15s; }
+.voice-wave .bar:nth-child(2) { animation-delay: 0.45s; }
+.voice-wave .bar:nth-child(3) { animation-delay: 0.25s; }
+.voice-wave .bar:nth-child(4) { animation-delay: 0.65s; }
+.voice-wave .bar:nth-child(5) { animation-delay: 0.35s; }
+.voice-wave .bar:nth-child(6) { animation-delay: 0.55s; }
+.voice-wave .bar:nth-child(7) { animation-delay: 0.20s; }
+
+/* --- Call Status UI --- */
+#status {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+#status-message {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+#status.status-connected #status-message {
+    color: #4ade80;
+    font-weight: 600;
+    text-shadow: 0 0 15px rgba(74, 222, 128, 0.2);
+}
+
+#status.status-connected .dots {
+    display: none;
+}
+
+.dots {
+    display: flex;
+    gap: 6px;
+}
+
+.dots span {
+    width: 7px;
+    height: 7px;
+    background-color: var(--text-secondary);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.dots span:nth-child(1) { animation-delay: -0.32s; }
+.dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.3); opacity: 0.5; }
+    40% { transform: scale(1.1); opacity: 1; }
+}
+
+/* --- Call Controls --- */
+.call-controls {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.call-controls .btn {
+    flex: 1;
+}
+
+/* --- Participants Mesh P2P List --- */
+#participants-section {
+    width: 100%;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1.25rem;
+    margin-top: 0.5rem;
+}
+
+#participant-count {
+    font-family: var(--font-title);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+#participant-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: 130px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+/* Custom Scrollbar for participant list */
+#participant-list::-webkit-scrollbar {
+    width: 4px;
+}
+#participant-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+#participant-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.participant-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 10px 14px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.participant-item.fade-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.participant-item.fade-out {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    background-color: #4ade80;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #4ade80;
+}
+
+/* Wizard Setup Panels animations */
+.setup-panel {
+    animation: panelFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    width: 100%;
+}
+
+@keyframes panelFade {
+    from {
+        opacity: 0;
+        transform: scale(0.97) translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.panel-info {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.panel-info strong {
+    color: var(--primary);
+    font-family: monospace;
+    font-size: 1.05rem;
+}

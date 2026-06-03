@@ -1,12 +1,23 @@
-const CACHE_NAME = 'vocal-v2';
+const CACHE_NAME = 'vocal-v4';
 const ASSETS = [
   './',
   './index.html',
-  './script.js',
-  './style.css',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './style.css',
+  './css/variables.css',
+  './css/base.css',
+  './css/card.css',
+  './css/buttons.css',
+  './css/inputs.css',
+  './css/call.css',
+  './js/main.js',
+  './js/state.js',
+  './js/dom.js',
+  './js/audio.js',
+  './js/utils.js',
+  './js/peer-manager.js'
 ];
 
 // Instalação do Service Worker e cacheamento dos recursos estáticos
