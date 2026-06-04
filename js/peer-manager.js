@@ -459,8 +459,6 @@ function handleSupabaseMessageChange(payload, localUserId) {
 
     if (eventType === 'INSERT') {
         const msg = newRecord;
-        if (state.displayedMessageIds.has(msg.id)) return;
-        state.displayedMessageIds.add(msg.id);
 
         const alreadyInHistory = state.chatHistory.some(m => m.messageId === msg.id);
         if (!alreadyInHistory) {
@@ -520,9 +518,6 @@ function syncChatHistory(history) {
         const media = msg.media_url ? { dataUrl: msg.media_url, mimeType: msg.mime_type } : msg.media;
         const hasHeart = msg.has_heart !== undefined ? msg.has_heart : msg.hasHeart;
         const isDeleted = msg.is_deleted !== undefined ? msg.is_deleted : (text === 'Mensagem apagada');
-
-        if (state.displayedMessageIds.has(messageId)) return;
-        state.displayedMessageIds.add(messageId);
 
         let localMsg = state.chatHistory.find(m => m.messageId === messageId);
         if (!localMsg) {
