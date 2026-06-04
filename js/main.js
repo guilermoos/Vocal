@@ -70,8 +70,15 @@ let pendingMedia = null; // { dataUrl, mimeType }
 function clearPendingMedia() {
     pendingMedia = null;
     if (mediaPreviewContainer) mediaPreviewContainer.style.display = 'none';
-    if (mediaPreviewImg) { mediaPreviewImg.style.display = 'none'; mediaPreviewImg.src = ''; }
-    if (mediaPreviewVideo) { mediaPreviewVideo.style.display = 'none'; mediaPreviewVideo.src = ''; }
+    if (mediaPreviewImg) { 
+        mediaPreviewImg.style.display = 'none'; 
+        mediaPreviewImg.removeAttribute('src'); 
+    }
+    if (mediaPreviewVideo) { 
+        mediaPreviewVideo.style.display = 'none'; 
+        mediaPreviewVideo.removeAttribute('src');
+        try { mediaPreviewVideo.load(); } catch (e) {}
+    }
     if (mediaFileInput) mediaFileInput.value = '';
     updateSendBtnState();
 }
@@ -304,14 +311,14 @@ if (privacyPrivateBtn) {
 if (btnGoCreate) {
     btnGoCreate.addEventListener('click', () => {
         if (createRoomNameInput) createRoomNameInput.value = '';
-        createNameInput.value = '';
+        createNameInput.value = currentUserProfile ? currentUserProfile.display_name : '';
         if (createPasswordInput) createPasswordInput.value = '';
         state.roomType = 'public';
         if (privacyPublicBtn) privacyPublicBtn.classList.add('active');
         if (privacyPrivateBtn) privacyPrivateBtn.classList.remove('active');
         if (createPasswordWrapper) createPasswordWrapper.style.display = 'none';
-        createRoomBtn.disabled = true;
         showPanel(panelCreate);
+        validateCreateForm();
         if (createRoomNameInput) {
             createRoomNameInput.focus();
         } else {
