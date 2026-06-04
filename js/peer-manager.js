@@ -18,6 +18,114 @@ let reconnectIntervalId = null;
 const CHUNK_SIZE = 64 * 1024; // 64KB per chunk (safe for WebRTC DataChannel)
 const incomingMediaChunks = new Map(); // transferId -> { chunks[], totalChunks, mimeType, senderName, senderId, text }
 
+function isLocalHost() {
+    return state.isHost || state.proxyPeer !== null;
+}
+
+export function broadcastRoomState() {
+    if (!isLocalHost()) return;
+    
+    const participants = [
+        { id: state.peer.id, name: state.localName, joinTime: state.joinTime }
+    ];
+    
+    state.peers.forEach((peerObj, peerId) => {
+        participants.push({
+            id: peerId,
+            name: peerObj.name,
+            joinTime: peerObj.joinTime
+        });
+    });
+    
+    state.peers.forEach((peerObj) => {
+        if (peerObj.conn && peerObj.conn.open) {
+            try {
+                peerObj.conn.send({
+                    type: 'room_state',
+                    participants
+                });
+            } catch (e) {
+                console.error('Erro ao enviar room_state:', e);
+            }
+        }
+    });
+}
+
+export function sendMessageToPeer(peerId, message) {
+    const peerObj = state.peers.get(peerId);
+    if (peerObj && peerObj.conn && peerObj.conn.open) {
+        try {
+            peerObj.conn.send(message);
+            return;
+        } catch (e) {
+            console.error(`Erro ao enviar mensagem direta para ${peerId}. Tentando via Host relay.`, e);
+        }
+    }
+    
+    // Fallback: relay via Host
+    if (!isLocalHost() && peerId !== state.targetRoomCode) {
+        const hostObj = state.peers.get(state.targetRoomCode);
+        if (hostObj && hostObj.conn && hostObj.conn.open) {
+            try {
+                hostObj.conn.send({
+                    type: 'relay_message',
+                    targetId: peerId,
+                    payload: message
+                });
+                console.log(`Relay: Mensagem para ${peerId} enviada via Host.`);
+            } catch (e) {
+                console.error(`Relay: Falha ao enviar via Host para ${peerId}`, e);
+            }
+        }
+    }
+}
+
+function syncChatHistory(history) {
+    const receivedHistory = history || [];
+    receivedHistory.forEach(msg => {
+        const localMsg = state.chatHistory.find(m => m.messageId === msg.messageId);
+        if (!localMsg) {
+            state.chatHistory.push(msg);
+            const isMe = msg.senderName === state.localName;
+            appendChatMessage(
+                msg.senderName,
+                msg.text,
+                'user',
+                isMe ? 'me' : 'other',
+                msg.media,
+                msg.messageId
+            );
+            if (msg.hasHeart) {
+                const wrapper = document.querySelector(`[data-message-id="${msg.messageId}"]`);
+                if (wrapper) {
+                    import('./dom.js').then(module => {
+                        module.toggleHeartReactionLocally(wrapper, true);
+                    });
+                }
+            }
+        } else {
+            const wrapper = document.querySelector(`[data-message-id="${msg.messageId}"]`);
+            if (msg.text === 'Mensagem apagada' && localMsg.text !== 'Mensagem apagada') {
+                localMsg.text = 'Mensagem apagada';
+                delete localMsg.media;
+                if (wrapper) {
+                    import('./dom.js').then(module => {
+                        module.deleteMessageLocally(wrapper);
+                    });
+                }
+            }
+            if (msg.hasHeart !== localMsg.hasHeart) {
+                localMsg.hasHeart = msg.hasHeart;
+                if (wrapper) {
+                    import('./dom.js').then(module => {
+                        module.toggleHeartReactionLocally(wrapper, msg.hasHeart);
+                    });
+                }
+            }
+        }
+    });
+}
+
 function generateTransferId() {
     return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -25,14 +133,14 @@ function generateTransferId() {
 /**
  * Send media in chunks over a DataChannel connection.
  */
-function sendMediaInChunks(conn, payload) {
+function sendMediaInChunks(peerId, payload) {
     const { text, senderName, senderId, media } = payload;
     const transferId = generateTransferId();
     const dataUrl = media.dataUrl;
     const totalChunks = Math.ceil(dataUrl.length / CHUNK_SIZE);
 
     // Send metadata first
-    conn.send({
+    sendMessageToPeer(peerId, {
         type: 'media_start',
         transferId,
         totalChunks,
@@ -46,10 +154,11 @@ function sendMediaInChunks(conn, payload) {
     // Send chunks sequentially
     let chunkIndex = 0;
     function sendNextChunk() {
+        if (!state.peers.has(peerId)) return;
         if (chunkIndex >= totalChunks) return;
         const start = chunkIndex * CHUNK_SIZE;
         const chunk = dataUrl.slice(start, start + CHUNK_SIZE);
-        conn.send({
+        sendMessageToPeer(peerId, {
             type: 'media_chunk',
             transferId,
             chunkIndex,
@@ -177,7 +286,24 @@ function handleIncomingData(conn, data) {
         console.log(`Mesh: Aceitou entrada do participante ${guestName} (${peerId})`);
 
         // Adiciona à lista de peers local
-        state.peers.set(peerId, { conn, call: null, stream: null, name: guestName, joinTime: guestJoinTime });
+        let peerObj = state.peers.get(peerId);
+        if (!peerObj) {
+            state.peers.set(peerId, { conn, call: null, stream: null, name: guestName, joinTime: guestJoinTime });
+            peerObj = state.peers.get(peerId);
+        } else {
+            peerObj.conn = conn;
+            peerObj.name = guestName;
+            peerObj.joinTime = guestJoinTime;
+        }
+
+        peerObj.isReconnecting = false;
+        if (peerObj.reconnectTimeoutId) {
+            clearTimeout(peerObj.reconnectTimeoutId);
+            peerObj.reconnectTimeoutId = null;
+        }
+        import('./dom.js').then(module => {
+            module.setParticipantConnected(peerId);
+        });
 
         // Envia confirmação contendo todos os outros participantes ativos e histórico de chat
         const peersList = [{ id: state.peer.id, name: state.localName, joinTime: state.joinTime }];
@@ -197,49 +323,81 @@ function handleIncomingData(conn, data) {
             roomName: state.roomName
         });
 
-        // Notifica todos os demais participantes ativos sobre o novo peer
-        state.peers.forEach((pObj, pId) => {
-            if (pId !== peerId && pObj.conn) {
-                try {
-                    pObj.conn.send({
-                        type: 'novo_peer',
-                        id: peerId,
-                        name: guestName,
-                        joinTime: guestJoinTime
-                    });
-                } catch (e) {}
-            }
-        });
+        // Notifica todos os demais participantes ativos sobre o novo peer via room_state
+        broadcastRoomState();
 
         addParticipantToList(peerId);
         updateParticipantUI();
         appendChatMessage(null, `${guestName} entrou na sala`, 'system');
 
-    } else if (data.type === 'novo_peer') {
-        console.log('Mesh: Recebeu novo peer de outro participante:', data.id, data.name);
-        const peerId = data.id;
-        const peerName = data.name;
-        const peerJoinTime = data.joinTime;
-
-        if (!state.peers.has(peerId)) {
-            state.peers.set(peerId, { conn: null, call: null, stream: null, name: peerName, joinTime: peerJoinTime });
-        } else {
-            state.peers.get(peerId).name = peerName;
-            state.peers.get(peerId).joinTime = peerJoinTime;
-        }
-
-        addParticipantToList(peerId);
-        updateParticipantUI();
+    } else if (data.type === 'room_state') {
+        console.log('Room State Sync: Recebido room_state atualizado do Host:', data.participants);
         
-        // Conecta diretamente via P2P com este novo peer
-        const newConn = state.peer.connect(peerId);
-        setupDataConnection(newConn);
-        newConn.on('open', () => {
-            newConn.send({ type: 'join', name: state.localName, joinTime: state.joinTime });
+        // 1. Identificar quem saiu (está no nosso state.peers mas não no room_state)
+        const currentPeerIds = Array.from(state.peers.keys());
+        currentPeerIds.forEach((pId) => {
+            if (pId === state.targetRoomCode) return; // Não removemos o Host
+            
+            const stillInRoom = data.participants.some(p => p.id === pId);
+            if (!stillInRoom) {
+                console.log(`Room State Sync: Removendo peer ${pId} que não está mais no room_state`);
+                removePeerPermanently(pId);
+            }
         });
-        initiateCall(peerId);
+        
+        // 2. Identificar novos peers e sincronizar/conectar
+        data.participants.forEach((p) => {
+            if (p.id === state.peer.id) return; // Ignora o próprio cliente
+            if (p.id === state.targetRoomCode) return; // Ignora o host original (já temos conexão dedicada)
+            
+            const existingPeer = state.peers.get(p.id);
+            if (!existingPeer) {
+                console.log(`Room State Sync: Novo participante no room_state: ${p.name} (${p.id})`);
+                state.peers.set(p.id, { conn: null, call: null, stream: null, name: p.name, joinTime: p.joinTime });
+                addParticipantToList(p.id);
+                updateParticipantUI();
+                appendChatMessage(null, `${p.name} entrou na sala`, 'system');
+                
+                if (state.peer.id < p.id) {
+                    const conn = state.peer.connect(p.id);
+                    setupDataConnection(conn);
+                    conn.on('open', () => {
+                        conn.send({ type: 'join', name: state.localName, joinTime: state.joinTime });
+                    });
+                    initiateCall(p.id);
+                }
+            } else {
+                existingPeer.name = p.name;
+                existingPeer.joinTime = p.joinTime;
+                
+                // Se a conexão caiu e somos o iniciador, tenta reconectar
+                if ((!existingPeer.conn || !existingPeer.conn.open) && state.peer.id < p.id) {
+                    console.log(`Room State Sync: Reconectando com ${p.name} (${p.id})`);
+                    if (existingPeer.conn) {
+                        try { existingPeer.conn.close(); } catch(e) {}
+                    }
+                    const conn = state.peer.connect(p.id);
+                    existingPeer.conn = conn;
+                    setupDataConnection(conn);
+                    conn.on('open', () => {
+                        conn.send({ type: 'join', name: state.localName, joinTime: state.joinTime });
+                    });
+                    initiateCall(p.id);
+                }
+            }
+        });
 
-        appendChatMessage(null, `${peerName} entrou na sala`, 'system');
+    } else if (data.type === 'relay_message') {
+        const targetId = data.targetId;
+        const targetObj = state.peers.get(targetId);
+        if (targetObj && targetObj.conn && targetObj.conn.open) {
+            try {
+                targetObj.conn.send(data.payload);
+                console.log(`Relay: Repassando mensagem de ${peerId} para ${targetId}`);
+            } catch (e) {
+                console.error(`Relay: Erro ao repassar mensagem de ${peerId} para ${targetId}`, e);
+            }
+        }
 
     } else if (data.type === 'chat') {
         console.log('Mesh: Mensagem de chat recebida:', data.senderName, data.text);
@@ -529,6 +687,9 @@ function handleGuestReconnection() {
                 }
                 initiateCall(state.targetRoomCode);
 
+                // Sincronizar histórico do chat recebido
+                syncChatHistory(data.history);
+
                 // Reconecta aos demais participantes se necessário
                 if (data.peers) {
                     data.peers.forEach(p => {
@@ -538,31 +699,36 @@ function handleGuestReconnection() {
                                 return;
                             }
                             
-                            const conn = state.peer.connect(p.id);
-                            setupDataConnection(conn);
-                            
                             if (!state.peers.has(p.id)) {
-                                state.peers.set(p.id, { conn, call: null, stream: null, name: p.name, joinTime: p.joinTime });
+                                state.peers.set(p.id, { conn: null, call: null, stream: null, name: p.name, joinTime: p.joinTime });
                             } else {
                                 state.peers.get(p.id).name = p.name;
                                 state.peers.get(p.id).joinTime = p.joinTime;
+                            }
+                            
+                            addParticipantToList(p.id);
+                            
+                            // Só conecta se o nosso ID for lexicograficamente menor para evitar glare
+                            if (state.peer.id < p.id) {
+                                const conn = state.peer.connect(p.id);
+                                setupDataConnection(conn);
                                 state.peers.get(p.id).conn = conn;
                                 state.peers.get(p.id).isReconnecting = false;
                                 if (state.peers.get(p.id).reconnectTimeoutId) {
                                     clearTimeout(state.peers.get(p.id).reconnectTimeoutId);
                                     state.peers.get(p.id).reconnectTimeoutId = null;
                                 }
-                            }
-
-                            conn.on('open', () => {
-                                conn.send({
-                                    type: 'join',
-                                    name: state.localName,
-                                    joinTime: state.joinTime
+                                
+                                conn.on('open', () => {
+                                    conn.send({
+                                        type: 'join',
+                                        name: state.localName,
+                                        joinTime: state.joinTime
+                                    });
                                 });
-                            });
 
-                            initiateCall(p.id);
+                                initiateCall(p.id);
+                            }
                         }
                     });
                 }
@@ -631,6 +797,11 @@ export function removePeerPermanently(peerId) {
     updateParticipantUI();
     playSound('disconnect');
 
+    // Se formos o Host/Proxy, notificamos todos os demais sobre a saída
+    if (isLocalHost()) {
+        broadcastRoomState();
+    }
+
     // Aciona a verificação para promoção automática do Proxy Host (takeover)
     checkHostTakeover();
 }
@@ -669,11 +840,13 @@ export function removePeer(peerId) {
         clearTimeout(peerObj.reconnectTimeoutId);
     }
 
-    // Espera 15 segundos antes de remover de vez o participante offline
-    peerObj.reconnectTimeoutId = setTimeout(() => {
-        console.log(`Tempo esgotado para reconexão de ${peerId}. Removendo permanentemente.`);
-        removePeerPermanently(peerId);
-    }, 15000);
+    // Apenas o Host inicia o timeout de remoção permanente da sala
+    if (isLocalHost()) {
+        peerObj.reconnectTimeoutId = setTimeout(() => {
+            console.log(`Host: Tempo esgotado para reconexão de ${peerId}. Removendo permanentemente.`);
+            removePeerPermanently(peerId);
+        }, 15000);
+    }
 }
 
 // Algoritmo de eleição de Host Proxy baseada no tempo de permanência (joinTime)
@@ -822,28 +995,9 @@ export async function joinRoom(roomCode, nameToUse, passwordToUse) {
                     state.joinTime = data.joinTime;
                     state.roomPassword = data.password;
                     state.roomType = data.roomType;
-                    state.chatHistory = data.history || [];
 
-                    // Renderizar histórico do chat recebido
-                    state.chatHistory.forEach(msg => {
-                        const isMe = msg.senderName === state.localName;
-                        appendChatMessage(
-                            msg.senderName,
-                            msg.text,
-                            'user',
-                            isMe ? 'me' : 'other',
-                            msg.media,
-                            msg.messageId
-                        );
-                        if (msg.hasHeart) {
-                            const wrapper = document.querySelector(`[data-message-id="${msg.messageId}"]`);
-                            if (wrapper) {
-                                import('./dom.js').then(module => {
-                                    module.toggleHeartReactionLocally(wrapper, true);
-                                });
-                            }
-                        }
-                    });
+                    // Sincronizar histórico do chat recebido
+                    syncChatHistory(data.history);
 
                     appendChatMessage(null, 'Você entrou na sala', 'system');
                     
@@ -857,26 +1011,27 @@ export async function joinRoom(roomCode, nameToUse, passwordToUse) {
                             }
                             initiateCall(p.id);
                         } else {
-                            const conn = state.peer.connect(p.id);
-                            setupDataConnection(conn);
-                            
                             if (!state.peers.has(p.id)) {
-                                state.peers.set(p.id, { conn, call: null, stream: null, name: p.name, joinTime: p.joinTime });
-                            } else {
-                                state.peers.get(p.id).name = p.name;
-                                state.peers.get(p.id).joinTime = p.joinTime;
-                                state.peers.get(p.id).conn = conn;
+                                state.peers.set(p.id, { conn: null, call: null, stream: null, name: p.name, joinTime: p.joinTime });
                             }
+                            addParticipantToList(p.id);
+                            
+                            // Só conecta se o nosso ID for lexicograficamente menor para evitar glare
+                            if (state.peer.id < p.id) {
+                                const conn = state.peer.connect(p.id);
+                                setupDataConnection(conn);
+                                state.peers.get(p.id).conn = conn;
 
-                            conn.on('open', () => {
-                                conn.send({
-                                    type: 'join',
-                                    name: state.localName,
-                                    joinTime: state.joinTime
+                                conn.on('open', () => {
+                                    conn.send({
+                                        type: 'join',
+                                        name: state.localName,
+                                        joinTime: state.joinTime
+                                    });
                                 });
-                            });
 
-                            initiateCall(p.id);
+                                initiateCall(p.id);
+                            }
                         }
                     });
                     updateParticipantUI();
@@ -975,6 +1130,7 @@ export function endCall() {
     });
     state.peers.clear();
     state.chatHistory = [];
+    state.displayedMessageIds.clear();
 
     // Encerra microfone local
     if (state.localStream) {
@@ -1013,29 +1169,23 @@ export function sendChatMessage(text, media = null) {
     });
 
     // 2. Enviar em tempo real para todos os outros participantes da sala
-    state.peers.forEach((peerObj) => {
-        if (peerObj.conn) {
-            try {
-                if (media && media.dataUrl) {
-                    sendMediaInChunks(peerObj.conn, {
-                        text: trimmed,
-                        senderName: state.localName,
-                        senderId: state.peer.id,
-                        media,
-                        messageId: msgId
-                    });
-                } else {
-                    peerObj.conn.send({
-                        type: 'chat',
-                        text: trimmed,
-                        senderName: state.localName,
-                        senderId: state.peer.id,
-                        messageId: msgId
-                    });
-                }
-            } catch (e) {
-                console.error('Erro no envio direto P2P:', e);
-            }
+    state.peers.forEach((peerObj, peerId) => {
+        if (media && media.dataUrl) {
+            sendMediaInChunks(peerId, {
+                text: trimmed,
+                senderName: state.localName,
+                senderId: state.peer.id,
+                media,
+                messageId: msgId
+            });
+        } else {
+            sendMessageToPeer(peerId, {
+                type: 'chat',
+                text: trimmed,
+                senderName: state.localName,
+                senderId: state.peer.id,
+                messageId: msgId
+            });
         }
     });
 }
@@ -1049,12 +1199,8 @@ export function notifyDeleteMessage(messageId) {
     }
 
     // 2. Notificar todos os peers em tempo real
-    state.peers.forEach((peerObj) => {
-        if (peerObj.conn) {
-            try {
-                peerObj.conn.send({ type: 'delete_message', messageId });
-            } catch (e) {}
-        }
+    state.peers.forEach((peerObj, peerId) => {
+        sendMessageToPeer(peerId, { type: 'delete_message', messageId });
     });
 }
 
@@ -1066,11 +1212,38 @@ export function notifyReactMessage(messageId, hasReaction) {
     }
 
     // 2. Notificar todos os peers em tempo real
-    state.peers.forEach((peerObj) => {
-        if (peerObj.conn) {
-            try {
-                peerObj.conn.send({ type: 'react_message', messageId, hasReaction });
-            } catch (e) {}
-        }
+    state.peers.forEach((peerObj, peerId) => {
+        sendMessageToPeer(peerId, { type: 'react_message', messageId, hasReaction });
     });
 }
+
+// --- Loop de Reconciliação Periódica ---
+setInterval(() => {
+    if (!state.peer || state.peer.destroyed || state.voluntaryLeave) return;
+    
+    // O Host não precisa rodar o loop de reconciliação de conexões com os convidados
+    if (isLocalHost()) return;
+
+    state.peers.forEach((peerObj, peerId) => {
+        // Ignora a conexão com o Host (ela é cuidada pelo handleGuestReconnection)
+        if (peerId === state.targetRoomCode) return;
+
+        // Se a conexão não está aberta e somos o iniciador (id menor)
+        if ((!peerObj.conn || !peerObj.conn.open) && state.peer.id < peerId) {
+            console.log(`Reconciliation Loop: Restabelecendo conexão com ${peerObj.name || peerId}`);
+            if (peerObj.conn) {
+                try { peerObj.conn.close(); } catch (e) {}
+            }
+            
+            const conn = state.peer.connect(peerId);
+            peerObj.conn = conn;
+            setupDataConnection(conn);
+            conn.on('open', () => {
+                conn.send({ type: 'join', name: state.localName, joinTime: state.joinTime });
+            });
+            
+            // Re-inicia chamada de áudio se necessário
+            initiateCall(peerId);
+        }
+    });
+}, 5000);

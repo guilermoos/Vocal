@@ -325,6 +325,12 @@ export function appendChatMessage(senderName, text, type = 'user', senderId = nu
         
         // Atribui o ID da mensagem para sincronização
         const msgId = messageId || 'msg-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        
+        if (state.displayedMessageIds.has(msgId)) {
+            return;
+        }
+        state.displayedMessageIds.add(msgId);
+        
         wrapper.dataset.messageId = msgId;
         
         if (!isOutgoing && senderName) {

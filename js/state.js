@@ -19,7 +19,8 @@ export const state = {
     
     // Chat state
     activeTab: 'call', // 'call' | 'chat'
-    unreadCount: 0
+    unreadCount: 0,
+    displayedMessageIds: new Set()
 };
 
 export const MAX_PARTICIPANTS = 8;
