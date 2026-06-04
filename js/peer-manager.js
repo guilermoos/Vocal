@@ -10,6 +10,11 @@ import {
 import { playSound, stopTitleBlink } from './audio.js';
 import { generateRandomCode } from './utils.js';
 
+// --- Reconnection State ---
+let isReconnectingToHost = false;
+let reconnectAttempts = 0;
+let reconnectIntervalId = null;
+
 // --- Chunked Media Transfer ---
 const CHUNK_SIZE = 64 * 1024; // 64KB per chunk (safe for WebRTC DataChannel)
 const incomingMediaChunks = new Map(); // transferId -> { chunks[], totalChunks, mimeType, senderName, senderId, text }
@@ -124,9 +129,42 @@ export function createPeer(peerId) {
 }
 
 export function setupPeerCommonEvents() {
+    state.peer.on('disconnected', () => {
+        console.log('PeerJS desconectado do servidor. Reconectando...');
+        if (state.peer) {
+            state.peer.reconnect();
+        }
+    });
+
     state.peer.on('call', (call) => {
         const incomingPeerId = call.peer;
         console.log('Recebendo chamada de:', incomingPeerId);
+        
+        // Se o peer já estava em reconexão, limpa o timer e re-estabelece
+        if (state.peers.has(incomingPeerId)) {
+            const peerObj = state.peers.get(incomingPeerId);
+            if (peerObj.isReconnecting) {
+                console.log(`Re-estabelecendo chamada com ${incomingPeerId}`);
+                if (peerObj.reconnectTimeoutId) {
+                    clearTimeout(peerObj.reconnectTimeoutId);
+                    peerObj.reconnectTimeoutId = null;
+                }
+                peerObj.isReconnecting = false;
+                if (peerObj.call) {
+                    try { peerObj.call.close(); } catch (e) {}
+                }
+                peerObj.call = call;
+                
+                // Restaurar UI
+                import('./dom.js').then(module => {
+                    module.setParticipantConnected(incomingPeerId);
+                });
+                
+                call.answer(state.localStream);
+                setupCallHandlers(call);
+                return;
+            }
+        }
         
         // Resolução de chamadas duplicadas
         if (state.peers.has(incomingPeerId) && state.peers.get(incomingPeerId).call) {
@@ -181,6 +219,48 @@ export function initializePeer(peerId) {
             if (data.type === 'join') {
                 const guestName = data.name || conn.peer.substring(0, 5);
                 console.log(`Host: Novo peer se juntou: ${guestName} (${conn.peer})`);
+                
+                // --- Verificação de Reconexão ---
+                if (state.peers.has(conn.peer)) {
+                    const peerObj = state.peers.get(conn.peer);
+                    if (peerObj.isReconnecting) {
+                        console.log(`Host: Participante ${guestName} reconectou!`);
+                        
+                        if (peerObj.reconnectTimeoutId) {
+                            clearTimeout(peerObj.reconnectTimeoutId);
+                            peerObj.reconnectTimeoutId = null;
+                        }
+                        
+                        peerObj.isReconnecting = false;
+                        peerObj.conn = conn;
+                        peerObj.name = guestName;
+                        
+                        import('./dom.js').then(module => {
+                            module.setParticipantConnected(conn.peer);
+                        });
+                        
+                        appendChatMessage(null, `${guestName} reconectou-se à sala`, 'system');
+                        
+                        const peersList = [{ id: state.peer.id, name: state.localName }];
+                        state.peers.forEach((pObj, pId) => {
+                            if (pId !== conn.peer) {
+                                peersList.push({ id: pId, name: pObj.name });
+                            }
+                        });
+                        conn.send({ type: 'peers_list', peers: peersList });
+                        
+                        state.peers.forEach((pObj, pId) => {
+                            if (pId !== conn.peer && pObj.conn) {
+                                try {
+                                    pObj.conn.send({ type: 'novo_peer', id: conn.peer, name: guestName });
+                                } catch (e) {}
+                            }
+                        });
+                        
+                        updateParticipantUI();
+                        return;
+                    }
+                }
                 
                 // Verificar limite de participantes (máximo de 8 no total)
                 if (state.peers.size + 1 >= MAX_PARTICIPANTS) {
@@ -369,10 +449,81 @@ export function setupCallHandlers(call) {
     });
 }
 
-export function removePeer(peerId) {
+function handleGuestReconnection() {
+    if (isReconnectingToHost) return;
+    if (!state.peer) return;
+
+    isReconnectingToHost = true;
+    reconnectAttempts = 0;
+    
+    console.log('Guest: Perda de conexão com o Host detectada. Iniciando reconexão automática...');
+    appendChatMessage(null, 'Conexão perdida. Tentando reconectar ao Host...', 'system');
+    
+    const statusMsg = document.getElementById('status-message');
+    if (statusMsg) {
+        statusMsg.innerText = 'Conexão perdida. Reconectando...';
+    }
+    const statusDiv = document.getElementById('status');
+    if (statusDiv) {
+        statusDiv.className = 'status-waiting';
+    }
+
+    const tryReconnect = () => {
+        if (!state.peer || !state.targetRoomCode) {
+            clearInterval(reconnectIntervalId);
+            return;
+        }
+
+        reconnectAttempts++;
+        console.log(`Guest: Tentativa de reconexão ${reconnectAttempts}/5...`);
+
+        if (state.peer.disconnected) {
+            state.peer.reconnect();
+        }
+
+        const hostConn = state.peer.connect(state.targetRoomCode);
+        
+        const setupTimeout = setTimeout(() => {
+            try { hostConn.close(); } catch (e) {}
+        }, 4000);
+
+        hostConn.on('open', () => {
+            clearTimeout(setupTimeout);
+            clearInterval(reconnectIntervalId);
+            console.log('Guest: Reconectado ao Host com sucesso!');
+            
+            isReconnectingToHost = false;
+            reconnectAttempts = 0;
+            
+            if (state.peers.has(state.targetRoomCode)) {
+                state.peers.get(state.targetRoomCode).conn = hostConn;
+            }
+            
+            hostConn.send({ type: 'join', name: state.localName });
+            initiateCall(state.targetRoomCode);
+        });
+        
+        if (reconnectAttempts >= 5) {
+            clearInterval(reconnectIntervalId);
+            console.log('Guest: Limite de tentativas de reconexão atingido. Encerrando chamada.');
+            appendChatMessage(null, 'Falha ao reconectar. Encerrando chamada.', 'system');
+            setTimeout(endCall, 2000);
+        }
+    };
+
+    tryReconnect();
+    reconnectIntervalId = setInterval(tryReconnect, 3500);
+}
+
+export function removePeerPermanently(peerId) {
     if (!state.peers.has(peerId)) return;
-    console.log('Removendo participante da chamada:', peerId);
+    console.log('Removendo participante permanentemente da chamada:', peerId);
     const peerObj = state.peers.get(peerId);
+    
+    if (peerObj.reconnectTimeoutId) {
+        clearTimeout(peerObj.reconnectTimeoutId);
+        peerObj.reconnectTimeoutId = null;
+    }
     
     if (peerObj.call) {
         try { peerObj.call.close(); } catch (e) {}
@@ -391,7 +542,6 @@ export function removePeer(peerId) {
         }, 500);
     }
     
-    // Sistema: Notificar saída no chat
     const leavingName = peerObj.name || peerId.substring(0, 5);
     appendChatMessage(null, `${leavingName} saiu da sala`, 'system');
     
@@ -399,7 +549,6 @@ export function removePeer(peerId) {
     updateParticipantUI();
     playSound('disconnect');
     
-    // Se for o host, notificar todos os outros sobre a saída
     if (state.isHost) {
         state.peers.forEach((otherPeer) => {
             if (otherPeer.conn) {
@@ -409,6 +558,45 @@ export function removePeer(peerId) {
             }
         });
     }
+}
+
+export function removePeer(peerId) {
+    if (!state.peers.has(peerId)) return;
+    const peerObj = state.peers.get(peerId);
+
+    if (peerObj.isReconnecting) return;
+
+    console.log(`Participante ${peerId} desconectado. Entrando em estado de reconexão...`);
+    peerObj.isReconnecting = true;
+    
+    if (peerObj.conn) {
+        try { peerObj.conn.close(); } catch (e) {}
+        peerObj.conn = null;
+    }
+    if (peerObj.call) {
+        try { peerObj.call.close(); } catch (e) {}
+        peerObj.call = null;
+    }
+    if (peerObj.audioElement) {
+        try { peerObj.audioElement.remove(); } catch (e) {}
+        peerObj.audioElement = null;
+    }
+
+    const peerName = peerObj.name || peerId.substring(0, 5);
+    appendChatMessage(null, `${peerName} perdeu a conexão. Aguardando reconexão...`, 'system');
+
+    import('./dom.js').then(module => {
+        module.setParticipantReconnecting(peerId);
+    });
+
+    if (peerObj.reconnectTimeoutId) {
+        clearTimeout(peerObj.reconnectTimeoutId);
+    }
+
+    peerObj.reconnectTimeoutId = setTimeout(() => {
+        console.log(`Tempo limite de reconexão esgotado para ${peerId}. Removendo permanentemente.`);
+        removePeerPermanently(peerId);
+    }, 15000);
 }
 
 export async function joinRoom(roomCode, nameToUse) {
@@ -506,12 +694,12 @@ export async function joinRoom(roomCode, nameToUse) {
             
             hostConn.on('close', () => {
                 console.log('Guest: Conexão de dados com Host fechada.');
-                removePeer(state.targetRoomCode);
+                handleGuestReconnection();
             });
             
             hostConn.on('error', (err) => {
                 console.error('Guest: Erro na conexão de dados com Host:', err);
-                removePeer(state.targetRoomCode);
+                handleGuestReconnection();
             });
         });
         
@@ -541,8 +729,18 @@ export function endCall() {
     
     state.hadParticipantsConnected = false;
     
+    if (reconnectIntervalId) {
+        clearInterval(reconnectIntervalId);
+        reconnectIntervalId = null;
+    }
+    isReconnectingToHost = false;
+    reconnectAttempts = 0;
+    
     // Fechar todas as conexões e chamadas
     state.peers.forEach((peerObj) => {
+        if (peerObj.reconnectTimeoutId) {
+            clearTimeout(peerObj.reconnectTimeoutId);
+        }
         if (peerObj.call) {
             try { peerObj.call.close(); } catch (e) {}
         }

@@ -587,6 +587,36 @@ function toggleHeartReaction(wrapper) {
     }
 }
 
+/**
+ * Define o estado visual do participante como reconectando.
+ */
+export function setParticipantReconnecting(peerId) {
+    if (!state.peers.has(peerId)) return;
+    const peerObj = state.peers.get(peerId);
+    if (peerObj.listItemElement) {
+        peerObj.listItemElement.classList.add('reconnecting');
+        const textSpan = peerObj.listItemElement.querySelector('span:not(.status-dot)');
+        if (textSpan) {
+            textSpan.innerText = `${peerObj.name || peerId.substring(0, 5)} (Reconectando...)`;
+        }
+    }
+}
+
+/**
+ * Remove o estado visual de reconexão do participante.
+ */
+export function setParticipantConnected(peerId) {
+    if (!state.peers.has(peerId)) return;
+    const peerObj = state.peers.get(peerId);
+    if (peerObj.listItemElement) {
+        peerObj.listItemElement.classList.remove('reconnecting');
+        const textSpan = peerObj.listItemElement.querySelector('span:not(.status-dot)');
+        if (textSpan) {
+            textSpan.innerText = peerObj.name || peerId.substring(0, 5);
+        }
+    }
+}
+
 function openMediaLightbox(src, isVideo) {
     const overlay = document.createElement('div');
     overlay.className = 'media-lightbox';
