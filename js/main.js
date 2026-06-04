@@ -63,6 +63,20 @@ import { generateRandomCode, setupClipboardCopy } from './utils.js';
 import { createPeer, initializePeer, joinRoom, startMedia, endCall, sendChatMessage } from './peer-manager.js';
 import { signUp, signIn, signOut, getCurrentUser } from './auth.js';
 import { supabase } from './supabase-config.js';
+import {
+    initContacts,
+    cleanupContacts,
+    sendContactRequest,
+    findUserByUsername,
+    loadAcceptedContacts,
+    loadPendingRequests,
+    acceptContactRequest,
+    removeContact,
+    inviteContactToRoom,
+    acceptRoomInvite,
+    declineRoomInvite,
+    isUserOnline
+} from './contacts.js';
 
 // --- Media State ---
 let pendingMedia = null; // { dataUrl, mimeType }
@@ -701,6 +715,7 @@ if (btnRegisterSubmit) {
 if (btnLogout) {
     btnLogout.addEventListener('click', async () => {
         try {
+            cleanupContacts();
             await signOut();
             console.log('Logout efetuado com sucesso.');
             if (loginIdentifierInput) loginIdentifierInput.value = '';
@@ -743,9 +758,18 @@ export async function checkAuthSession() {
             if (pName) pName.innerText = currentUserProfile.display_name;
             if (pUser) pUser.innerText = `@${currentUserProfile.username}`;
             
+            // Inicializar módulo de contatos
+            initContacts(currentUserProfile, {
+                onContactsUpdated: refreshContactsUI,
+                onInviteReceived: showInviteModal,
+                onInviteResponseReceived: handleInviteResponse
+            });
+            refreshContactsUI();
+            
             initializeRoomOrMainPanel();
         } else {
             currentUserProfile = null;
+            cleanupContacts();
             
             const profileBar = document.getElementById('user-profile-bar');
             if (profileBar) profileBar.style.display = 'none';
@@ -754,6 +778,331 @@ export async function checkAuthSession() {
         }
     } catch (e) {
         console.error('Erro na validação de sessão:', e);
+    }
+}
+
+// ==========================================
+// === CONTACTS UI LOGIC ====================
+// ==========================================
+
+const tabSetupRooms = document.getElementById('tab-setup-rooms');
+const tabSetupContacts = document.getElementById('tab-setup-contacts');
+const setupRoomsContent = document.getElementById('setup-rooms-content');
+const setupContactsContent = document.getElementById('setup-contacts-content');
+const addContactInput = document.getElementById('add-contact-input');
+const btnAddContact = document.getElementById('btn-add-contact');
+const addContactFeedback = document.getElementById('add-contact-feedback');
+const pendingRequestsSection = document.getElementById('pending-requests-section');
+const pendingRequestsList = document.getElementById('pending-requests-list');
+const pendingCountBadge = document.getElementById('pending-count-badge');
+const contactsList = document.getElementById('contacts-list');
+const noContactsMsg = document.getElementById('no-contacts-msg');
+const contactsTabBadge = document.getElementById('contacts-tab-badge');
+
+// Invite Modal
+const inviteModal = document.getElementById('invite-modal');
+const inviteAvatar = document.getElementById('invite-avatar');
+const inviteTitle = document.getElementById('invite-title');
+const inviteUsername = document.getElementById('invite-username');
+const inviteDesc = document.getElementById('invite-desc');
+const inviteDeclineBtn = document.getElementById('invite-decline-btn');
+const inviteAcceptBtn = document.getElementById('invite-accept-btn');
+
+let currentInvite = null; // Convite ativo no modal
+
+// --- Setup Tab Switching ---
+if (tabSetupRooms) {
+    tabSetupRooms.addEventListener('click', () => {
+        tabSetupRooms.classList.add('active');
+        tabSetupContacts.classList.remove('active');
+        if (setupRoomsContent) setupRoomsContent.style.display = 'block';
+        if (setupContactsContent) setupContactsContent.style.display = 'none';
+    });
+}
+
+if (tabSetupContacts) {
+    tabSetupContacts.addEventListener('click', () => {
+        tabSetupContacts.classList.add('active');
+        tabSetupRooms.classList.remove('active');
+        if (setupRoomsContent) setupRoomsContent.style.display = 'none';
+        if (setupContactsContent) setupContactsContent.style.display = 'block';
+        refreshContactsUI();
+    });
+}
+
+// --- Add Contact Input ---
+if (addContactInput) {
+    addContactInput.addEventListener('input', () => {
+        const val = addContactInput.value.trim();
+        if (btnAddContact) btnAddContact.disabled = val.length < 3;
+    });
+}
+
+if (btnAddContact) {
+    btnAddContact.addEventListener('click', async () => {
+        const username = addContactInput.value.trim();
+        if (!username) return;
+        btnAddContact.disabled = true;
+        setFeedback('', '');
+
+        try {
+            const targetProfile = await findUserByUsername(username);
+            if (!targetProfile) {
+                setFeedback('Usuário não encontrado.', 'error');
+                return;
+            }
+
+            const result = await sendContactRequest(targetProfile.id);
+            if (result === 'accepted') {
+                setFeedback(`Contato com @${targetProfile.username} estabelecido!`, 'success');
+            } else {
+                setFeedback(`Solicitação enviada para @${targetProfile.username}.`, 'success');
+            }
+            addContactInput.value = '';
+            refreshContactsUI();
+        } catch (err) {
+            setFeedback(err.message || 'Erro ao adicionar contato.', 'error');
+        } finally {
+            btnAddContact.disabled = addContactInput.value.trim().length < 3;
+        }
+    });
+}
+
+function setFeedback(msg, type) {
+    if (!addContactFeedback) return;
+    addContactFeedback.innerText = msg;
+    addContactFeedback.className = 'contact-feedback-msg ' + (type || '');
+}
+
+// --- Render Contacts UI ---
+async function refreshContactsUI() {
+    try {
+        const [accepted, pending] = await Promise.all([
+            loadAcceptedContacts(),
+            loadPendingRequests()
+        ]);
+
+        // Render pending requests
+        if (pendingRequestsList) {
+            pendingRequestsList.innerHTML = '';
+            pending.forEach(req => renderPendingRequest(req));
+        }
+        if (pendingRequestsSection) {
+            pendingRequestsSection.style.display = pending.length > 0 ? 'block' : 'none';
+        }
+        if (pendingCountBadge) {
+            pendingCountBadge.innerText = pending.length;
+        }
+        if (contactsTabBadge) {
+            contactsTabBadge.style.display = pending.length > 0 ? 'block' : 'none';
+        }
+
+        // Render accepted contacts
+        if (contactsList) {
+            contactsList.innerHTML = '';
+            accepted.forEach(contact => renderContactCard(contact));
+        }
+        if (noContactsMsg) {
+            noContactsMsg.style.display = accepted.length > 0 ? 'none' : 'block';
+        }
+    } catch (err) {
+        console.error('[Contacts UI] Erro ao atualizar:', err);
+    }
+}
+
+function renderPendingRequest(req) {
+    if (!pendingRequestsList || !req.otherProfile) return;
+    const p = req.otherProfile;
+
+    const li = document.createElement('li');
+    li.className = 'contact-card-item';
+    li.innerHTML = `
+        <div class="contact-card-info">
+            <div class="contact-card-avatar">
+                ${p.display_name.substring(0, 1).toUpperCase()}
+            </div>
+            <div class="contact-card-details">
+                <span class="contact-card-name">${p.display_name}</span>
+                <span class="contact-card-username">@${p.username}</span>
+            </div>
+        </div>
+        <div class="contact-card-actions">
+            <button class="btn-contact-action accept" title="Aceitar">
+                <span class="material-symbols-rounded">check</span>
+            </button>
+            <button class="btn-contact-action delete" title="Recusar">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+    `;
+
+    li.querySelector('.accept').addEventListener('click', async () => {
+        try {
+            await acceptContactRequest(req.id);
+            refreshContactsUI();
+        } catch (err) {
+            console.error('Erro ao aceitar:', err);
+        }
+    });
+
+    li.querySelector('.delete').addEventListener('click', async () => {
+        try {
+            await removeContact(req.id);
+            refreshContactsUI();
+        } catch (err) {
+            console.error('Erro ao recusar:', err);
+        }
+    });
+
+    pendingRequestsList.appendChild(li);
+}
+
+function renderContactCard(contact) {
+    if (!contactsList || !contact.otherProfile) return;
+    const p = contact.otherProfile;
+    const online = isUserOnline(p.id);
+
+    const li = document.createElement('li');
+    li.className = 'contact-card-item';
+    li.innerHTML = `
+        <div class="contact-card-info">
+            <div class="contact-card-avatar ${online ? '' : 'offline'}">
+                ${p.display_name.substring(0, 1).toUpperCase()}
+                <span class="presence-dot ${online ? 'online' : 'offline'}"></span>
+            </div>
+            <div class="contact-card-details">
+                <span class="contact-card-name">${p.display_name}</span>
+                <span class="contact-card-username">@${p.username}</span>
+            </div>
+        </div>
+        <div class="contact-card-actions">
+            <button class="btn-contact-action call" title="Ligar">
+                <span class="material-symbols-rounded">call</span>
+            </button>
+            <button class="btn-contact-action delete" title="Remover contato">
+                <span class="material-symbols-rounded">person_remove</span>
+            </button>
+        </div>
+    `;
+
+    li.querySelector('.call').addEventListener('click', async () => {
+        try {
+            await handleCallContact(p.id);
+        } catch (err) {
+            console.error('Erro ao ligar:', err);
+            setFeedback(err.message || 'Erro ao iniciar chamada.', 'error');
+        }
+    });
+
+    li.querySelector('.delete').addEventListener('click', async () => {
+        try {
+            await removeContact(contact.id);
+            refreshContactsUI();
+        } catch (err) {
+            console.error('Erro ao remover:', err);
+        }
+    });
+
+    contactsList.appendChild(li);
+}
+
+// --- Call Contact: Create room + invite ---
+async function handleCallContact(targetUserId) {
+    try {
+        await startMedia();
+        const roomCode = generateRandomCode();
+
+        // Registrar sala temporária no Supabase
+        const { data: userData } = await supabase.auth.getUser();
+        const hostId = userData?.user?.id || null;
+
+        const { error: dbError } = await supabase.from('rooms').insert([{
+            code: roomCode,
+            name: `Chamada direta`,
+            is_private: false,
+            password_hash: null,
+            host_id: hostId
+        }]);
+
+        if (dbError) throw dbError;
+
+        state.localName = currentUserProfile.display_name;
+        state.roomName = 'Chamada direta';
+        state.roomType = 'public';
+        state.roomPassword = '';
+
+        initializePeer(roomCode);
+
+        // Enviar convite ao contato
+        await inviteContactToRoom(targetUserId, roomCode);
+        console.log('[Contacts] ✅ Sala criada e convite enviado:', roomCode);
+    } catch (err) {
+        console.error('[Contacts] Erro ao iniciar chamada:', err);
+        throw err;
+    }
+}
+
+// --- Invite Modal ---
+function showInviteModal(invite) {
+    currentInvite = invite;
+    const p = invite.senderProfile;
+
+    if (inviteAvatar) inviteAvatar.innerText = p ? p.display_name.substring(0, 1).toUpperCase() : '?';
+    if (inviteTitle) inviteTitle.innerText = p ? p.display_name : 'Alguém';
+    if (inviteUsername) inviteUsername.innerText = p ? `@${p.username}` : '';
+    if (inviteDesc) inviteDesc.innerText = 'Quer te convidar para uma chamada de áudio.';
+    if (inviteModal) inviteModal.style.display = 'flex';
+}
+
+function hideInviteModal() {
+    if (inviteModal) inviteModal.style.display = 'none';
+    currentInvite = null;
+}
+
+if (inviteAcceptBtn) {
+    inviteAcceptBtn.addEventListener('click', async () => {
+        if (!currentInvite) return;
+        const invite = currentInvite;
+        hideInviteModal();
+
+        try {
+            await acceptRoomInvite(invite.id);
+
+            // Se estiver em chamada, desligar primeiro
+            if (state.peer) {
+                endCall();
+                // Pequeno delay para limpar
+                await new Promise(r => setTimeout(r, 300));
+            }
+
+            // Entrar na sala do convite
+            const name = currentUserProfile ? currentUserProfile.display_name : state.localName;
+            await joinRoom(invite.room_code, name, '');
+        } catch (err) {
+            console.error('[Invite] Erro ao aceitar convite:', err);
+        }
+    });
+}
+
+if (inviteDeclineBtn) {
+    inviteDeclineBtn.addEventListener('click', async () => {
+        if (!currentInvite) return;
+        const invite = currentInvite;
+        hideInviteModal();
+
+        try {
+            await declineRoomInvite(invite.id);
+        } catch (err) {
+            console.error('[Invite] Erro ao recusar convite:', err);
+        }
+    });
+}
+
+function handleInviteResponse(invite) {
+    if (invite.status === 'rejected') {
+        console.log('[Invite] Convite recusado pelo destinatário.');
+    } else if (invite.status === 'accepted') {
+        console.log('[Invite] Convite aceito pelo destinatário.');
     }
 }
 

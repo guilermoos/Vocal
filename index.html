@@ -112,16 +112,72 @@
 
             <!-- Painel 1: Menu Principal -->
             <div id="panel-main" class="setup-panel" style="display: none;">
-                <div class="actions">
-                    <button id="btn-go-create" class="btn btn-primary">
-                        <span class="material-symbols-rounded">add_circle</span>
-                        Criar uma Sala
+                <!-- Abas do Menu Principal -->
+                <div class="setup-tabs">
+                    <button id="tab-setup-rooms" class="setup-tab-btn active">
+                        <span class="material-symbols-rounded">meeting_room</span>
+                        Salas
                     </button>
-                    <div class="separator">ou</div>
-                    <button id="btn-go-join" class="btn btn-secondary">
-                        <span class="material-symbols-rounded">login</span>
-                        Entrar com Código
+                    <button id="tab-setup-contacts" class="setup-tab-btn">
+                        <span class="material-symbols-rounded">contacts</span>
+                        Contatos
+                        <span id="contacts-tab-badge" class="chat-badge" style="display: none;"></span>
                     </button>
+                </div>
+
+                <!-- Conteúdo da Aba Salas -->
+                <div id="setup-rooms-content">
+                    <div class="actions">
+                        <button id="btn-go-create" class="btn btn-primary">
+                            <span class="material-symbols-rounded">add_circle</span>
+                            Criar uma Sala
+                        </button>
+                        <div class="separator">ou</div>
+                        <button id="btn-go-join" class="btn btn-secondary">
+                            <span class="material-symbols-rounded">login</span>
+                            Entrar com Código
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Conteúdo da Aba Contatos -->
+                <div id="setup-contacts-content" style="display: none;">
+                    <!-- Adicionar contato -->
+                    <div class="add-contact-row">
+                        <div class="input-wrapper">
+                            <span class="material-symbols-rounded input-icon">alternate_email</span>
+                            <input type="text" id="add-contact-input" placeholder="Nome de usuário (@usuario)" maxlength="30">
+                        </div>
+                        <button id="btn-add-contact" class="btn btn-primary btn-add-contact" disabled>
+                            <span class="material-symbols-rounded">person_add</span>
+                        </button>
+                    </div>
+                    <div id="add-contact-feedback" class="contact-feedback-msg"></div>
+
+                    <div class="setup-contacts-container">
+                        <!-- Solicitações Pendentes -->
+                        <div id="pending-requests-section" style="display: none;">
+                            <div class="contacts-section-title">
+                                <span class="material-symbols-rounded">notification_important</span>
+                                Solicitações Pendentes
+                                <span id="pending-count-badge" class="badge-count">0</span>
+                            </div>
+                            <ul id="pending-requests-list" class="contacts-list-ul"></ul>
+                        </div>
+
+                        <!-- Contatos -->
+                        <div id="accepted-contacts-section">
+                            <div class="contacts-section-title">
+                                <span class="material-symbols-rounded">group</span>
+                                Meus Contatos
+                            </div>
+                            <ul id="contacts-list" class="contacts-list-ul"></ul>
+                            <div id="no-contacts-msg" class="no-contacts-state">
+                                <span class="material-symbols-rounded">person_search</span>
+                                Adicione contatos pelo @usuario para começar.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -354,6 +410,26 @@
             </div>
         </section>
     </main>
+
+    <!-- Modal de Convite de Chamada -->
+    <div id="invite-modal" class="invite-overlay" style="display: none;">
+        <div class="invite-card">
+            <div id="invite-avatar" class="invite-card-avatar">?</div>
+            <div id="invite-title" class="invite-card-title">Convite</div>
+            <div id="invite-username" class="invite-card-username">@usuario</div>
+            <div id="invite-desc" class="invite-card-desc">Quer te convidar para uma chamada de áudio.</div>
+            <div class="invite-card-buttons">
+                <button id="invite-decline-btn" class="invite-card-btn decline">
+                    <span class="material-symbols-rounded">call_end</span>
+                    Recusar
+                </button>
+                <button id="invite-accept-btn" class="invite-card-btn accept">
+                    <span class="material-symbols-rounded">call</span>
+                    Aceitar
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="js/main.js"></script>
 </body>

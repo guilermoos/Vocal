@@ -83,6 +83,18 @@ export function showPanel(panel) {
     });
     if (panel) panel.style.display = 'block';
     errorMessage.innerText = '';
+
+    // Ao voltar para o painel principal, resetar as abas para "Salas"
+    if (panel === panelMain) {
+        const tabRooms = document.getElementById('tab-setup-rooms');
+        const tabContacts = document.getElementById('tab-setup-contacts');
+        const roomsContent = document.getElementById('setup-rooms-content');
+        const contactsContent = document.getElementById('setup-contacts-content');
+        if (tabRooms) tabRooms.classList.add('active');
+        if (tabContacts) tabContacts.classList.remove('active');
+        if (roomsContent) roomsContent.style.display = 'block';
+        if (contactsContent) contactsContent.style.display = 'none';
+    }
 }
 
 export function showView(viewToShow) {

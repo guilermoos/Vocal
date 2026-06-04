@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vocal-v20';
+const CACHE_NAME = 'vocal-v21';
 const ASSETS = [
   './',
   './index.html',
@@ -13,12 +13,17 @@ const ASSETS = [
   './css/buttons.css',
   './css/inputs.css',
   './css/call.css',
+  './css/auth.css',
+  './css/contacts.css',
   './js/main.js',
   './js/state.js',
   './js/dom.js',
   './js/audio.js',
   './js/utils.js',
-  './js/peer-manager.js'
+  './js/peer-manager.js',
+  './js/auth.js',
+  './js/contacts.js',
+  './js/supabase-config.js'
 ];
 
 // Instalação do Service Worker e cacheamento dos recursos estáticos
