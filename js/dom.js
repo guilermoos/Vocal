@@ -4,6 +4,7 @@ import { stopTitleBlink, startTitleBlink, playChatChime, startVoiceVisualizer, s
 // --- Seleção de Elementos do DOM ---
 export const setupSection = document.getElementById('setup-section');
 export const callSection = document.getElementById('call-section');
+export const callRoomTitle = document.getElementById('call-room-title');
 export const createRoomBtn = document.getElementById('create-room-btn');
 export const joinRoomBtn = document.getElementById('join-room-btn');
 export const roomCodeInput = document.getElementById('room-code-input');
@@ -24,6 +25,7 @@ export const panelJoinName = document.getElementById('panel-join-name');
 export const panelLinkJoin = document.getElementById('panel-link-join');
 
 // Inputs
+export const createRoomNameInput = document.getElementById('create-room-name-input');
 export const createNameInput = document.getElementById('create-name-input');
 export const joinNameInput = document.getElementById('join-name-input');
 export const linkNameInput = document.getElementById('link-name-input');
@@ -47,7 +49,9 @@ export const joinCodeNextBtn = document.getElementById('join-code-next-btn');
 export const linkJoinConfirmBtn = document.getElementById('link-join-confirm-btn');
 
 // Displays
+export const joiningRoomNameDisplay = document.getElementById('joining-room-name-display');
 export const joiningRoomCodeDisplay = document.getElementById('joining-room-code-display');
+export const linkRoomNameDisplay = document.getElementById('link-room-name-display');
 export const linkRoomCodeDisplay = document.getElementById('link-room-code-display');
 export const shareLinkDisplay = document.getElementById('share-link-display');
 export const copyShareLinkBtn = document.getElementById('copy-share-link-btn');
@@ -100,7 +104,7 @@ export function updateMuteButtonUI() {
     }
 }
 
-export function showCallView(roomId) {
+export function showCallView(roomId, roomName) {
     // Resetar abas e mensagens do chat
     showTab('call');
     if (chatMessages) chatMessages.innerHTML = '';
@@ -108,6 +112,9 @@ export function showCallView(roomId) {
     updateChatBadgeUI();
 
     roomIdDisplay.innerText = roomId;
+    if (callRoomTitle) {
+        callRoomTitle.innerText = roomName || 'Em chamada';
+    }
     state.isMuted = false;
     updateMuteButtonUI();
     
@@ -158,6 +165,7 @@ export function showSetupView() {
     }
     
     // Resetar inputs e botões do setup (wizard)
+    if (createRoomNameInput) createRoomNameInput.value = '';
     if (createNameInput) createNameInput.value = '';
     if (joinNameInput) joinNameInput.value = '';
     if (roomCodeInput) roomCodeInput.value = '';

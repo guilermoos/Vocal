@@ -9,6 +9,7 @@ export const state = {
     peers: new Map(), // peerId -> { conn, call, stream, audioElement, listItemElement, name }
     
     // Configurações da sala
+    roomName: '',
     roomPassword: '',
     roomType: 'public', // 'public' | 'private'
     voluntaryLeave: false,

@@ -14,6 +14,7 @@ import {
     panelJoinName,
     panelLinkJoin,
     panelMain,
+    createRoomNameInput,
     createNameInput,
     joinNameInput,
     linkNameInput,
@@ -25,7 +26,9 @@ import {
     btnCancelLinkJoin,
     joinCodeNextBtn,
     linkJoinConfirmBtn,
+    joiningRoomNameDisplay,
     joiningRoomCodeDisplay,
+    linkRoomNameDisplay,
     linkRoomCodeDisplay,
     shareLinkDisplay,
     copyShareLinkBtn,
@@ -189,15 +192,17 @@ if (mediaCameraInput) {
 // --- Validadores de Formulários ---
 
 function validateCreateForm() {
+    const roomName = createRoomNameInput ? createRoomNameInput.value.trim() : '';
     const name = createNameInput.value.trim();
+    const hasRoomName = roomName.length > 0;
     const hasName = name.length > 0;
     
     if (state.roomType === 'public') {
-        createRoomBtn.disabled = !hasName;
+        createRoomBtn.disabled = !hasName || !hasRoomName;
     } else {
         const password = createPasswordInput.value;
         const hasValidPassword = password.length >= 4;
-        createRoomBtn.disabled = !hasName || !hasValidPassword;
+        createRoomBtn.disabled = !hasName || !hasRoomName || !hasValidPassword;
     }
 }
 
@@ -228,6 +233,10 @@ function validateLinkForm() {
 }
 
 // --- Listeners de Input para Validar/Habilitar Botões ---
+
+if (createRoomNameInput) {
+    createRoomNameInput.addEventListener('input', validateCreateForm);
+}
 
 if (createNameInput) {
     createNameInput.addEventListener('input', validateCreateForm);
@@ -291,6 +300,7 @@ if (privacyPrivateBtn) {
 
 if (btnGoCreate) {
     btnGoCreate.addEventListener('click', () => {
+        if (createRoomNameInput) createRoomNameInput.value = '';
         createNameInput.value = '';
         if (createPasswordInput) createPasswordInput.value = '';
         state.roomType = 'public';
@@ -299,7 +309,11 @@ if (btnGoCreate) {
         if (createPasswordWrapper) createPasswordWrapper.style.display = 'none';
         createRoomBtn.disabled = true;
         showPanel(panelCreate);
-        createNameInput.focus();
+        if (createRoomNameInput) {
+            createRoomNameInput.focus();
+        } else {
+            createNameInput.focus();
+        }
     });
 }
 
@@ -361,7 +375,11 @@ if (joinCodeNextBtn) {
                 if (data.type === 'privacy_response') {
                     clearTimeout(timeoutId);
                     state.targetRoomCode = roomCode;
+                    state.roomName = data.roomName || '';
                     joiningRoomCodeDisplay.innerText = roomCode;
+                    if (joiningRoomNameDisplay) {
+                        joiningRoomNameDisplay.innerText = data.roomName || 'Sem nome';
+                    }
                     joinNameInput.value = '';
                     if (joinPasswordInput) joinPasswordInput.value = '';
                     
@@ -413,8 +431,9 @@ if (btnCancelLinkJoin) {
 createRoomBtn.addEventListener('click', async () => {
     errorMessage.innerText = '';
     state.localName = createNameInput.value.trim();
+    state.roomName = createRoomNameInput ? createRoomNameInput.value.trim() : '';
     state.roomPassword = createPasswordInput ? createPasswordInput.value : '';
-    if (!state.localName) return;
+    if (!state.localName || !state.roomName) return;
     
     createRoomBtn.disabled = true;
     try {
@@ -491,8 +510,12 @@ if (urlRoom && /^\d{5}$/.test(urlRoom)) {
                 if (data.type === 'privacy_response') {
                     clearTimeout(timeoutId);
                     state.targetRoomCode = urlRoom;
+                    state.roomName = data.roomName || '';
                     if (linkRoomCodeDisplay) {
                         linkRoomCodeDisplay.innerText = urlRoom;
+                    }
+                    if (linkRoomNameDisplay) {
+                        linkRoomNameDisplay.innerText = data.roomName || 'Sem nome';
                     }
                     if (data.roomType === 'private') {
                         if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'block';

@@ -152,7 +152,8 @@ function handleIncomingData(conn, data) {
         console.log('P2P Handshake: Respondendo consulta de privacidade');
         conn.send({
             type: 'privacy_response',
-            roomType: state.roomType
+            roomType: state.roomType,
+            roomName: state.roomName
         });
 
     } else if (data.type === 'join') {
@@ -192,7 +193,8 @@ function handleIncomingData(conn, data) {
             history: state.chatHistory,
             joinTime: guestJoinTime,
             password: state.roomPassword,
-            roomType: state.roomType
+            roomType: state.roomType,
+            roomName: state.roomName
         });
 
         // Notifica todos os demais participantes ativos sobre o novo peer
@@ -373,7 +375,7 @@ export function initializePeer(roomCode) {
 
     state.peer.on('open', (id) => {
         console.log('Host: Criado e ouvindo sob ID da sala:', id);
-        showCallView(roomCode);
+        showCallView(roomCode, state.roomName);
         appendChatMessage(null, 'Você criou e entrou na sala', 'system');
     });
 
@@ -507,6 +509,12 @@ function handleGuestReconnection() {
                 state.joinTime = data.joinTime;
                 state.roomPassword = data.password;
                 state.roomType = data.roomType;
+                state.roomName = data.roomName || '';
+                
+                const callRoomTitleElement = document.getElementById('call-room-title');
+                if (callRoomTitleElement) {
+                    callRoomTitleElement.innerText = state.roomName || 'Em chamada';
+                }
                 
                 // Atualiza a conexão do Host
                 if (state.peers.has(state.targetRoomCode)) {
@@ -726,7 +734,8 @@ function initializeProxyHost(roomCode) {
             if (data.type === 'query_privacy') {
                 conn.send({
                     type: 'privacy_response',
-                    roomType: state.roomType
+                    roomType: state.roomType,
+                    roomName: state.roomName
                 });
             } else if (data.type === 'join') {
                 // Valida senha
@@ -760,7 +769,8 @@ function initializeProxyHost(roomCode) {
                     history: state.chatHistory,
                     joinTime: guestJoinTime,
                     password: state.roomPassword,
-                    roomType: state.roomType
+                    roomType: state.roomType,
+                    roomName: state.roomName
                 });
             }
         });
@@ -806,7 +816,8 @@ export async function joinRoom(roomCode, nameToUse, passwordToUse) {
             
             hostConn.on('data', (data) => {
                 if (data.type === 'join_success') {
-                    showCallView(roomCode);
+                    state.roomName = data.roomName || '';
+                    showCallView(roomCode, state.roomName);
                     
                     state.joinTime = data.joinTime;
                     state.roomPassword = data.password;

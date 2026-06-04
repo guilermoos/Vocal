@@ -61,6 +61,10 @@
             <div id="panel-create" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <div class="input-wrapper">
+                        <span class="material-symbols-rounded input-icon">forum</span>
+                        <input type="text" id="create-room-name-input" placeholder="Nome da sala (ex: Família, Reunião)" maxlength="30">
+                    </div>
+                    <div class="input-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="create-name-input" placeholder="Seu nome" maxlength="20">
                     </div>
@@ -109,7 +113,7 @@
             <!-- Painel 4: Entrar com Código - Passo 2 (Nome e Senha) -->
             <div id="panel-join-name" class="setup-panel" style="display: none;">
                 <div class="actions">
-                    <p class="panel-info">Código da Sala: <strong id="joining-room-code-display"></strong></p>
+                    <p class="panel-info">Entrando em: <strong id="joining-room-name-display"></strong> <span style="font-size: 0.9em; opacity: 0.7;">(Código: <span id="joining-room-code-display"></span>)</span></p>
                     <div class="input-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="join-name-input" placeholder="Seu nome" maxlength="20">
@@ -129,7 +133,7 @@
             <!-- Painel 5: Entrar via Link (Nome e Senha) -->
             <div id="panel-link-join" class="setup-panel" style="display: none;">
                 <div class="actions">
-                    <p class="panel-info">Entrando na sala: <strong id="link-room-code-display"></strong></p>
+                    <p class="panel-info">Entrando em: <strong id="link-room-name-display"></strong> <span style="font-size: 0.9em; opacity: 0.7;">(Código: <span id="link-room-code-display"></span>)</span></p>
                     <div class="input-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="link-name-input" placeholder="Seu nome" maxlength="20">
@@ -155,7 +159,7 @@
                     <div class="pulse-ring"></div>
                     <span class="material-symbols-rounded header-call-icon">settings_voice</span>
                 </div>
-                <h1>Em chamada</h1>
+                <h1 id="call-room-title">Em chamada</h1>
             </header>
             
             <!-- Abas da Chamada -->
