@@ -324,28 +324,84 @@ export function endCall() {
 
 export async function sendChatMessage(text, media = null) {
     const trimmed = text ? text.trim() : '';
-    if (!trimmed && !media) return;
+    if (!trimmed && !media) {
+        console.warn('[Chat SEND] Ignorado: texto vazio e sem mídia.');
+        return;
+    }
+
+    console.log('[Chat SEND] Iniciando envio...', { text: trimmed, hasMedia: !!media, roomCode: state.targetRoomCode });
 
     try {
         const { getCurrentUser } = await import('./auth.js');
         const sessionData = await getCurrentUser();
-        if (!sessionData) return;
+        if (!sessionData) {
+            console.error('[Chat SEND] FALHA: Nenhuma sessão ativa. Mensagem não enviada.');
+            return;
+        }
         const profile = sessionData.profile;
+        console.log('[Chat SEND] Sessão OK.', { senderId: profile.id, senderName: profile.display_name });
 
-        const { error } = await supabase.from('messages').insert([
-            {
-                room_code: state.targetRoomCode,
-                sender_id: profile.id,
-                sender_name: profile.display_name,
-                text: trimmed || null,
-                media_url: media ? media.dataUrl : null,
-                mime_type: media ? media.mimeType : null
+        let mediaUrl = null;
+        let mimeType = null;
+
+        // Se houver mídia, faz upload para o Supabase Storage primeiro
+        if (media && media.dataUrl) {
+            mimeType = media.mimeType;
+            console.log('[Chat SEND] Fazendo upload da mídia para o Storage...', { mimeType });
+
+            try {
+                // Converter base64 dataUrl para Blob
+                const response = await fetch(media.dataUrl);
+                const blob = await response.blob();
+
+                // Gerar nome de arquivo único
+                const ext = mimeType.split('/')[1] || 'bin';
+                const fileName = `${state.targetRoomCode}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('media')
+                    .upload(fileName, blob, {
+                        contentType: mimeType,
+                        upsert: false
+                    });
+
+                if (uploadError) {
+                    console.error('[Chat SEND] ERRO no upload da mídia:', uploadError);
+                    throw uploadError;
+                }
+
+                // Obter URL pública
+                const { data: urlData } = supabase.storage
+                    .from('media')
+                    .getPublicUrl(uploadData.path);
+
+                mediaUrl = urlData.publicUrl;
+                console.log('[Chat SEND] ✅ Upload da mídia concluído:', mediaUrl);
+            } catch (uploadErr) {
+                console.error('[Chat SEND] EXCEÇÃO no upload da mídia:', uploadErr);
+                // Continua sem mídia se o upload falhar
             }
-        ]);
+        }
 
-        if (error) throw error;
+        const insertPayload = {
+            room_code: state.targetRoomCode,
+            sender_id: profile.id,
+            sender_name: profile.display_name,
+            text: trimmed || null,
+            media_url: mediaUrl,
+            mime_type: mimeType
+        };
+
+        console.log('[Chat SEND] Inserindo mensagem no banco...');
+        const { data, error } = await supabase.from('messages').insert([insertPayload]).select();
+
+        if (error) {
+            console.error('[Chat SEND] ERRO no INSERT do Supabase:', error);
+            throw error;
+        }
+        console.log('[Chat SEND] ✅ Mensagem salva no banco com sucesso:', data);
     } catch (err) {
-        console.error('Erro ao enviar mensagem:', err);
+        console.error('[Chat SEND] EXCEÇÃO ao enviar mensagem:', err);
     }
 }
 
@@ -395,6 +451,7 @@ async function setupSupabaseRealtime(roomCode) {
     localUserId = profile ? profile.id : null;
 
     // Buscar histórico de chat
+    console.log('[Realtime Setup] Buscando histórico de mensagens para sala:', roomCode);
     try {
         const { data: messages, error } = await supabase
             .from('messages')
@@ -403,14 +460,16 @@ async function setupSupabaseRealtime(roomCode) {
             .order('created_at', { ascending: true });
 
         if (error) throw error;
-        if (messages) {
+        console.log(`[Realtime Setup] Histórico carregado: ${messages ? messages.length : 0} mensagens`);
+        if (messages && messages.length > 0) {
             syncChatHistory(messages);
         }
     } catch (err) {
-        console.error('Erro ao buscar histórico de chat:', err);
+        console.error('[Realtime Setup] ERRO ao buscar histórico de chat:', err);
     }
 
     // Ouvinte em tempo real para novas mensagens / alterações
+    console.log('[Realtime Setup] Inscrevendo-se no canal de mensagens postgres_changes...');
     messagesChannel = supabase.channel(`room-messages:${roomCode}`)
         .on('postgres_changes', {
             event: '*',
@@ -418,9 +477,12 @@ async function setupSupabaseRealtime(roomCode) {
             table: 'messages',
             filter: `room_code=eq.${roomCode}`
         }, (payload) => {
+            console.log('[Realtime MSG] ⚡ Evento recebido:', payload.eventType, payload);
             handleSupabaseMessageChange(payload, profile.id);
         })
-        .subscribe();
+        .subscribe((status) => {
+            console.log('[Realtime MSG] Status da inscrição:', status);
+        });
 
     // Rastreamento de Presença
     roomChannel = supabase.channel(`room:${roomCode}`);
@@ -456,9 +518,11 @@ function cleanupSupabaseRealtime() {
 
 function handleSupabaseMessageChange(payload, localUserId) {
     const { eventType, new: newRecord, old: oldRecord } = payload;
+    console.log(`[Chat RECEIVE] Processando evento '${eventType}':`, { newRecord, localUserId });
 
     if (eventType === 'INSERT') {
         const msg = newRecord;
+        console.log(`[Chat RENDER] Nova mensagem INSERT:`, { id: msg.id, sender: msg.sender_name, text: msg.text, hasMedia: !!msg.media_url });
 
         const alreadyInHistory = state.chatHistory.some(m => m.messageId === msg.id);
         if (!alreadyInHistory) {
@@ -469,9 +533,12 @@ function handleSupabaseMessageChange(payload, localUserId) {
                 media: msg.media_url ? { dataUrl: msg.media_url, mimeType: msg.mime_type } : null,
                 hasHeart: msg.has_heart || false
             });
+        } else {
+            console.log(`[Chat RENDER] Mensagem ${msg.id} já estava no histórico local.`);
         }
 
         const isMe = msg.sender_id === localUserId;
+        console.log(`[Chat RENDER] Chamando appendChatMessage (isMe=${isMe}, msgId=${msg.id})`);
         appendChatMessage(
             msg.sender_name,
             msg.text || '',

@@ -1,32 +1,38 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vocal - Chamada de Áudio P2P</title>
-    
+
     <!-- PWA Configs -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Vocal">
-    <link rel="apple-touch-icon" href="icon-192.png">
-    
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
     <!-- Google Fonts & Google Icons (Material Symbols Rounded) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=block"
+        rel="stylesheet">
+
     <link rel="stylesheet" href="style.css">
-    
+
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+
     <!-- PeerJS -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
+
 <body>
     <div class="background-animation"></div>
     <div class="glow-container">
@@ -39,12 +45,12 @@
         <section id="setup-section" class="view active">
             <header>
                 <div class="logo-container">
-                    <img src="icon-84.png" alt="Vocal Logo" class="logo-img">
+                    <img src="icons/icon-84.png" alt="Vocal Logo" class="logo-img">
                 </div>
                 <h1>Vocal</h1>
                 <p class="subtitle">Chamadas de áudio simples, diretas e seguras.</p>
             </header>
-            
+
             <!-- Barra de Perfil do Usuário Autenticado -->
             <div id="user-profile-bar" class="user-profile-bar" style="display: none;">
                 <div class="user-profile-info">
@@ -124,13 +130,14 @@
                 <div class="actions">
                     <div class="input-wrapper">
                         <span class="material-symbols-rounded input-icon">forum</span>
-                        <input type="text" id="create-room-name-input" placeholder="Nome da sala (ex: Família, Reunião)" maxlength="30">
+                        <input type="text" id="create-room-name-input" placeholder="Nome da sala (ex: Família, Reunião)"
+                            maxlength="30">
                     </div>
                     <div class="input-wrapper" id="create-name-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="create-name-input" placeholder="Seu nome" maxlength="20">
                     </div>
-                    
+
                     <!-- Seletor de Privacidade da Sala -->
                     <div class="privacy-selector">
                         <button type="button" id="privacy-public-btn" class="privacy-tab active">
@@ -146,7 +153,8 @@
                     <!-- Input de Senha (oculto por padrão) -->
                     <div class="input-wrapper" id="create-password-wrapper" style="display: none;">
                         <span class="material-symbols-rounded input-icon">vpn_key</span>
-                        <input type="password" id="create-password-input" placeholder="Senha da sala (mín. 4 caract.)" maxlength="20">
+                        <input type="password" id="create-password-input" placeholder="Senha da sala (mín. 4 caract.)"
+                            maxlength="20">
                     </div>
 
                     <button id="create-room-btn" class="btn btn-primary" disabled>Criar Sala</button>
@@ -175,7 +183,9 @@
             <!-- Painel 4: Entrar com Código - Passo 2 (Nome e Senha) -->
             <div id="panel-join-name" class="setup-panel" style="display: none;">
                 <div class="actions">
-                    <p class="panel-info">Entrando em: <strong id="joining-room-name-display"></strong> <span style="font-size: 0.9em; opacity: 0.7;">(Código: <span id="joining-room-code-display"></span>)</span></p>
+                    <p class="panel-info">Entrando em: <strong id="joining-room-name-display"></strong> <span
+                            style="font-size: 0.9em; opacity: 0.7;">(Código: <span
+                                id="joining-room-code-display"></span>)</span></p>
                     <div class="input-wrapper" id="join-name-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="join-name-input" placeholder="Seu nome" maxlength="20">
@@ -195,7 +205,9 @@
             <!-- Painel 5: Entrar via Link (Nome e Senha) -->
             <div id="panel-link-join" class="setup-panel" style="display: none;">
                 <div class="actions">
-                    <p class="panel-info">Entrando em: <strong id="link-room-name-display"></strong> <span style="font-size: 0.9em; opacity: 0.7;">(Código: <span id="link-room-code-display"></span>)</span></p>
+                    <p class="panel-info">Entrando em: <strong id="link-room-name-display"></strong> <span
+                            style="font-size: 0.9em; opacity: 0.7;">(Código: <span
+                                id="link-room-code-display"></span>)</span></p>
                     <div class="input-wrapper" id="link-name-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="link-name-input" placeholder="Seu nome" maxlength="20">
@@ -223,7 +235,7 @@
                 </div>
                 <h1 id="call-room-title">Em chamada</h1>
             </header>
-            
+
             <!-- Abas da Chamada -->
             <div class="call-tabs">
                 <button id="tab-call-btn" class="tab-btn active">
@@ -306,7 +318,8 @@
                     </div>
                     <div class="chat-input-row">
                         <input type="file" id="media-file-input" accept="image/*,video/*" style="display: none;">
-                        <input type="file" id="media-camera-input" accept="image/*,video/*" capture="environment" style="display: none;">
+                        <input type="file" id="media-camera-input" accept="image/*,video/*" capture="environment"
+                            style="display: none;">
                         <div class="attach-menu" id="attach-menu" style="display: none;">
                             <button id="attach-gallery-btn" class="attach-menu-item">
                                 <span class="material-symbols-rounded">photo_library</span>
@@ -344,4 +357,5 @@
 
     <script type="module" src="js/main.js"></script>
 </body>
+
 </html>

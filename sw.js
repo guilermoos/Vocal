@@ -3,9 +3,9 @@ const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon-84.png',
-  './icon-192.png',
-  './icon-512.png',
+  './icons/icon-84.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
   './style.css',
   './css/variables.css',
   './css/base.css',
@@ -52,7 +52,7 @@ self.addEventListener('activate', (event) => {
 // Estratégia Cache First apenas para arquivos locais do mesmo domínio
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
-  
+
   // Ignorar requisições que não sejam GET ou sejam de origens externas (ex: PeerJS CDN, Google Fonts)
   if (event.request.method !== 'GET' || requestUrl.origin !== self.location.origin) {
     return;
