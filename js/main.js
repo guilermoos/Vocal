@@ -57,9 +57,12 @@ import {
     mediaPreviewImg,
     mediaPreviewVideo,
     cancelMediaBtn,
+    panelAuth,
 } from './dom.js';
 import { generateRandomCode, setupClipboardCopy } from './utils.js';
 import { createPeer, initializePeer, joinRoom, startMedia, endCall, sendChatMessage } from './peer-manager.js';
+import { signUp, signIn, signOut, getCurrentUser } from './auth.js';
+import { supabase } from './supabase-config.js';
 
 // --- Media State ---
 let pendingMedia = null; // { dataUrl, mimeType }
@@ -339,77 +342,61 @@ if (btnBackToMainFromJoin) {
 }
 
 if (joinCodeNextBtn) {
-    joinCodeNextBtn.addEventListener('click', () => {
+    joinCodeNextBtn.addEventListener('click', async () => {
         errorMessage.innerText = '';
         const roomCode = roomCodeInput.value.trim();
         joinCodeNextBtn.disabled = true;
-        
-        // P2P: Criamos um peer temporário para interrogar o Host da sala
-        const tempPeer = createPeer(null);
-        if (!tempPeer) {
-            errorMessage.innerText = 'Erro ao instanciar conexão temporária.';
+
+        try {
+            if (!supabase) throw new Error('Supabase não inicializado.');
+
+            const { data, error } = await supabase
+                .from('rooms')
+                .select('*')
+                .eq('code', roomCode)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (!data) {
+                errorMessage.innerText = 'Sala não encontrada.';
+                joinCodeNextBtn.disabled = false;
+                return;
+            }
+
+            state.targetRoomCode = roomCode;
+            state.roomName = data.name || '';
+            joiningRoomCodeDisplay.innerText = roomCode;
+            if (joiningRoomNameDisplay) {
+                joiningRoomNameDisplay.innerText = data.name || 'Sem nome';
+            }
+
+            if (currentUserProfile) {
+                joinNameInput.value = currentUserProfile.display_name;
+            } else {
+                joinNameInput.value = '';
+            }
+            if (joinPasswordInput) joinPasswordInput.value = '';
+
+            if (data.is_private) {
+                if (joinPasswordWrapper) joinPasswordWrapper.style.display = 'block';
+            } else {
+                if (joinPasswordWrapper) joinPasswordWrapper.style.display = 'none';
+            }
+
+            validateJoinForm();
+            showPanel(panelJoinName);
+            if (data.is_private) {
+                if (joinPasswordInput) joinPasswordInput.focus();
+            } else if (!currentUserProfile && joinNameInput) {
+                joinNameInput.focus();
+            }
+        } catch (err) {
+            console.error('Erro ao buscar sala:', err);
+            errorMessage.innerText = 'Erro ao verificar existência da sala.';
+        } finally {
             joinCodeNextBtn.disabled = false;
-            return;
         }
-
-        const cleanup = () => {
-            try { tempPeer.disconnect(); tempPeer.destroy(); } catch(e) {}
-            joinCodeNextBtn.disabled = false;
-        };
-
-        const timeoutId = setTimeout(() => {
-            errorMessage.innerText = 'Sala não encontrada ou vazia.';
-            cleanup();
-        }, 6000);
-
-        tempPeer.on('open', () => {
-            console.log('TempPeer: Conectando ao código P2P:', roomCode);
-            const conn = tempPeer.connect(roomCode);
-            
-            conn.on('open', () => {
-                clearTimeout(timeoutId);
-                conn.send({ type: 'query_privacy' });
-            });
-
-            conn.on('data', (data) => {
-                if (data.type === 'privacy_response') {
-                    clearTimeout(timeoutId);
-                    state.targetRoomCode = roomCode;
-                    state.roomName = data.roomName || '';
-                    joiningRoomCodeDisplay.innerText = roomCode;
-                    if (joiningRoomNameDisplay) {
-                        joiningRoomNameDisplay.innerText = data.roomName || 'Sem nome';
-                    }
-                    joinNameInput.value = '';
-                    if (joinPasswordInput) joinPasswordInput.value = '';
-                    
-                    if (data.roomType === 'private') {
-                        if (joinPasswordWrapper) joinPasswordWrapper.style.display = 'block';
-                    } else {
-                        if (joinPasswordWrapper) joinPasswordWrapper.style.display = 'none';
-                    }
-                    
-                    joinRoomBtn.disabled = true;
-                    showPanel(panelJoinName);
-                    joinNameInput.focus();
-                    cleanup();
-                }
-            });
-
-            conn.on('error', (err) => {
-                clearTimeout(timeoutId);
-                console.error('TempPeer: Erro na conexão:', err);
-                errorMessage.innerText = 'Sala não encontrada ou vazia.';
-                cleanup();
-            });
-        });
-
-        tempPeer.on('error', (err) => {
-            clearTimeout(timeoutId);
-            console.error('TempPeer: Erro no peer:', err);
-            errorMessage.innerText = 'Sala não encontrada ou vazia.';
-            cleanup();
-        });
     });
 }
 
@@ -438,13 +425,32 @@ createRoomBtn.addEventListener('click', async () => {
     createRoomBtn.disabled = true;
     try {
         await startMedia();
-        // P2P pura: geramos o código numérico de 5 dígitos no próprio cliente
         const roomCode = generateRandomCode();
-        // Inicializamos o PeerJS utilizando o código da sala como o Peer ID
+        
+        // Registrar a sala no Supabase
+        const isPrivate = state.roomType === 'private';
+        const { hashPassword } = await import('./utils.js');
+        const passwordHash = isPrivate ? await hashPassword(state.roomPassword) : null;
+        
+        const { data: userData } = await supabase.auth.getUser();
+        const hostId = userData?.user?.id || null;
+        
+        const { error: dbError } = await supabase.from('rooms').insert([
+            {
+                code: roomCode,
+                name: state.roomName,
+                is_private: isPrivate,
+                password_hash: passwordHash,
+                host_id: hostId
+            }
+        ]);
+        
+        if (dbError) throw dbError;
+        
         initializePeer(roomCode);
     } catch (error) {
         console.error("Erro ao criar sala:", error);
-        errorMessage.innerText = 'Falha no acesso de mídia.';
+        errorMessage.innerText = error.message || 'Falha ao criar sala no banco.';
         createRoomBtn.disabled = false;
     }
 });
@@ -480,77 +486,70 @@ setupClipboardCopy(copyShareLinkBtn, () => shareLinkDisplay.innerText);
 
 // --- Inicialização e Checagem de URL ---
 
-const urlParams = new URLSearchParams(window.location.search);
-const urlRoom = urlParams.get('room');
+// --- Inicialização e Checagem de URL ---
 
-if (urlRoom && /^\d{5}$/.test(urlRoom)) {
-    const checkUrlRoomP2P = () => {
-        const tempPeer = createPeer(null);
-        
-        const cleanup = () => {
-            try { tempPeer.disconnect(); tempPeer.destroy(); } catch(e) {}
-        };
+let currentUserProfile = null;
 
-        const timeoutId = setTimeout(() => {
-            errorMessage.innerText = 'A sala deste link não foi encontrada ou está vazia.';
-            showPanel(panelMain);
-            cleanup();
-        }, 6000);
+async function initializeRoomOrMainPanel() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRoom = urlParams.get('room');
 
-        tempPeer.on('open', () => {
-            console.log('TempPeer: Conectando via link ao código P2P:', urlRoom);
-            const conn = tempPeer.connect(urlRoom);
-            
-            conn.on('open', () => {
-                clearTimeout(timeoutId);
-                conn.send({ type: 'query_privacy' });
-            });
+    if (urlRoom && /^\d{5}$/.test(urlRoom)) {
+        try {
+            if (!supabase) throw new Error('Supabase não inicializado.');
 
-            conn.on('data', (data) => {
-                if (data.type === 'privacy_response') {
-                    clearTimeout(timeoutId);
-                    state.targetRoomCode = urlRoom;
-                    state.roomName = data.roomName || '';
-                    if (linkRoomCodeDisplay) {
-                        linkRoomCodeDisplay.innerText = urlRoom;
-                    }
-                    if (linkRoomNameDisplay) {
-                        linkRoomNameDisplay.innerText = data.roomName || 'Sem nome';
-                    }
-                    if (data.roomType === 'private') {
-                        if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'block';
-                    } else {
-                        if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'none';
-                    }
-                    linkNameInput.value = '';
-                    if (linkPasswordInput) linkPasswordInput.value = '';
-                    linkJoinConfirmBtn.disabled = true;
-                    showPanel(panelLinkJoin);
-                    if (linkNameInput) {
-                        setTimeout(() => linkNameInput.focus(), 100);
-                    }
-                    cleanup();
-                }
-            });
+            const { data, error } = await supabase
+                .from('rooms')
+                .select('*')
+                .eq('code', urlRoom)
+                .maybeSingle();
 
-            conn.on('error', (err) => {
-                clearTimeout(timeoutId);
-                errorMessage.innerText = 'A sala deste link não foi encontrada ou está vazia.';
+            if (error) throw error;
+
+            if (!data) {
+                errorMessage.innerText = 'A sala deste link não foi encontrada.';
                 showPanel(panelMain);
-                cleanup();
-            });
-        });
+                return;
+            }
 
-        tempPeer.on('error', (err) => {
-            clearTimeout(timeoutId);
-            errorMessage.innerText = 'A sala deste link não foi encontrada ou está vazia.';
+            state.targetRoomCode = urlRoom;
+            state.roomName = data.name || '';
+            if (linkRoomCodeDisplay) {
+                linkRoomCodeDisplay.innerText = urlRoom;
+            }
+            if (linkRoomNameDisplay) {
+                linkRoomNameDisplay.innerText = data.name || 'Sem nome';
+            }
+
+            if (data.is_private) {
+                if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'block';
+            } else {
+                if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'none';
+            }
+
+            if (currentUserProfile) {
+                linkNameInput.value = currentUserProfile.display_name;
+            } else {
+                linkNameInput.value = '';
+            }
+            if (linkPasswordInput) linkPasswordInput.value = '';
+
+            validateLinkForm();
+            showPanel(panelLinkJoin);
+
+            if (data.is_private) {
+                if (linkPasswordInput) setTimeout(() => linkPasswordInput.focus(), 100);
+            } else if (!currentUserProfile && linkNameInput) {
+                setTimeout(() => linkNameInput.focus(), 100);
+            }
+        } catch (err) {
+            console.error('Erro ao verificar sala por link:', err);
+            errorMessage.innerText = 'Erro ao processar o link de acesso da sala.';
             showPanel(panelMain);
-            cleanup();
-        });
-    };
-    checkUrlRoomP2P();
-} else {
-    showPanel(panelMain);
+        }
+    } else {
+        showPanel(panelMain);
+    }
 }
 
 // --- Listeners de Eventos do Chat ---
@@ -592,6 +591,167 @@ if (chatMessageInput) {
 }
 
 // --- Registro do Service Worker ---
+
+// --- Lógica de Autenticação Supabase (Cadastro / Login / Logout) ---
+
+const loginIdentifierInput = document.getElementById('login-identifier-input');
+const loginPasswordInput = document.getElementById('login-password-input');
+const btnLoginSubmit = document.getElementById('btn-login-submit');
+
+const registerUsernameInput = document.getElementById('register-username-input');
+const registerNameInput = document.getElementById('register-name-input');
+const registerPasswordInput = document.getElementById('register-password-input');
+const btnRegisterSubmit = document.getElementById('btn-register-submit');
+
+const btnToggleAuth = document.getElementById('btn-toggle-auth');
+const authTitle = document.getElementById('auth-title');
+const authSubtitle = document.getElementById('auth-subtitle');
+const authToggleText = document.getElementById('auth-toggle-text');
+const loginFormFields = document.getElementById('login-form-fields');
+const registerFormFields = document.getElementById('register-form-fields');
+const btnLogout = document.getElementById('btn-logout');
+
+let isRegisterMode = false;
+
+if (btnToggleAuth) {
+    btnToggleAuth.addEventListener('click', () => {
+        isRegisterMode = !isRegisterMode;
+        errorMessage.innerText = '';
+        
+        if (isRegisterMode) {
+            authTitle.innerText = 'Crie sua Conta';
+            authSubtitle.innerText = 'Cadastre-se para começar a usar o Vocal.';
+            loginFormFields.style.display = 'none';
+            registerFormFields.style.display = 'block';
+            authToggleText.innerText = 'Já tem uma conta?';
+            btnToggleAuth.innerText = 'Entrar';
+        } else {
+            authTitle.innerText = 'Acesse sua Conta';
+            authSubtitle.innerText = 'Entre para criar ou participar de salas de áudio.';
+            loginFormFields.style.display = 'block';
+            registerFormFields.style.display = 'none';
+            authToggleText.innerText = 'Não tem uma conta?';
+            btnToggleAuth.innerText = 'Cadastre-se';
+        }
+    });
+}
+
+if (btnLoginSubmit) {
+    btnLoginSubmit.addEventListener('click', async () => {
+        const username = loginIdentifierInput.value.trim();
+        const password = loginPasswordInput.value;
+        
+        if (!username || !password) {
+            errorMessage.innerText = 'Por favor, preencha todos os campos.';
+            return;
+        }
+        
+        btnLoginSubmit.disabled = true;
+        errorMessage.innerText = '';
+        
+        try {
+            await signIn(username, password);
+            console.log('Login efetuado com sucesso!');
+            await checkAuthSession();
+        } catch (err) {
+            console.error('Erro no login:', err);
+            errorMessage.innerText = err.message || 'Erro ao efetuar login.';
+            btnLoginSubmit.disabled = false;
+        }
+    });
+}
+
+if (btnRegisterSubmit) {
+    btnRegisterSubmit.addEventListener('click', async () => {
+        const username = registerUsernameInput.value.trim();
+        const name = registerNameInput.value.trim();
+        const password = registerPasswordInput.value;
+        
+        if (!username || !name || !password) {
+            errorMessage.innerText = 'Por favor, preencha todos os campos.';
+            return;
+        }
+        
+        btnRegisterSubmit.disabled = true;
+        errorMessage.innerText = '';
+        
+        try {
+            await signUp(username, name, password);
+            alert('Conta criada com sucesso! Faça login para continuar.');
+            if (btnToggleAuth) btnToggleAuth.click();
+            registerUsernameInput.value = '';
+            registerNameInput.value = '';
+            registerPasswordInput.value = '';
+        } catch (err) {
+            console.error('Erro no cadastro:', err);
+            errorMessage.innerText = err.message || 'Erro ao criar conta.';
+        } finally {
+            btnRegisterSubmit.disabled = false;
+        }
+    });
+}
+
+if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+        try {
+            await signOut();
+            console.log('Logout efetuado com sucesso.');
+            if (loginIdentifierInput) loginIdentifierInput.value = '';
+            if (loginPasswordInput) loginPasswordInput.value = '';
+            if (btnLoginSubmit) btnLoginSubmit.disabled = false;
+            
+            await checkAuthSession();
+        } catch (err) {
+            console.error('Erro ao deslogar:', err);
+        }
+    });
+}
+
+export async function checkAuthSession() {
+    try {
+        const sessionData = await getCurrentUser();
+        if (sessionData) {
+            currentUserProfile = sessionData.profile;
+            console.log('Sessão ativa para:', currentUserProfile);
+            
+            state.localName = currentUserProfile.display_name;
+            if (createNameInput) createNameInput.value = currentUserProfile.display_name;
+            if (joinNameInput) joinNameInput.value = currentUserProfile.display_name;
+            if (linkNameInput) linkNameInput.value = currentUserProfile.display_name;
+            
+            const createNameWrapper = document.getElementById('create-name-wrapper');
+            const joinNameWrapper = document.getElementById('join-name-wrapper');
+            const linkNameWrapper = document.getElementById('link-name-wrapper');
+            if (createNameWrapper) createNameWrapper.style.display = 'none';
+            if (joinNameWrapper) joinNameWrapper.style.display = 'none';
+            if (linkNameWrapper) linkNameWrapper.style.display = 'none';
+            
+            const profileBar = document.getElementById('user-profile-bar');
+            const avatar = document.getElementById('user-profile-avatar');
+            const pName = document.getElementById('user-profile-name');
+            const pUser = document.getElementById('user-profile-username');
+            
+            if (profileBar) profileBar.style.display = 'flex';
+            if (avatar) avatar.innerText = currentUserProfile.display_name.substring(0, 1).toUpperCase();
+            if (pName) pName.innerText = currentUserProfile.display_name;
+            if (pUser) pUser.innerText = `@${currentUserProfile.username}`;
+            
+            initializeRoomOrMainPanel();
+        } else {
+            currentUserProfile = null;
+            
+            const profileBar = document.getElementById('user-profile-bar');
+            if (profileBar) profileBar.style.display = 'none';
+            
+            showPanel(panelAuth);
+        }
+    } catch (e) {
+        console.error('Erro na validação de sessão:', e);
+    }
+}
+
+// Iniciar checagem de sessão no carregamento da página
+checkAuthSession();
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

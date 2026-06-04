@@ -23,6 +23,7 @@ export const panelCreate = document.getElementById('panel-create');
 export const panelJoinCode = document.getElementById('panel-join-code');
 export const panelJoinName = document.getElementById('panel-join-name');
 export const panelLinkJoin = document.getElementById('panel-link-join');
+export const panelAuth = document.getElementById('panel-auth');
 
 // Inputs
 export const createRoomNameInput = document.getElementById('create-room-name-input');
@@ -77,7 +78,7 @@ export const cancelMediaBtn = document.getElementById('cancel-media-btn');
 // --- Funções de UI ---
 
 export function showPanel(panel) {
-    [panelMain, panelCreate, panelJoinCode, panelJoinName, panelLinkJoin].forEach(p => {
+    [panelMain, panelCreate, panelJoinCode, panelJoinName, panelLinkJoin, panelAuth].forEach(p => {
         if (p) p.style.display = 'none';
     });
     if (panel) panel.style.display = 'block';

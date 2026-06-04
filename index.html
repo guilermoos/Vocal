@@ -21,6 +21,9 @@
     
     <link rel="stylesheet" href="style.css">
     
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <!-- PeerJS -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
@@ -42,8 +45,67 @@
                 <p class="subtitle">Chamadas de áudio simples, diretas e seguras.</p>
             </header>
             
+            <!-- Barra de Perfil do Usuário Autenticado -->
+            <div id="user-profile-bar" class="user-profile-bar" style="display: none;">
+                <div class="user-profile-info">
+                    <div id="user-profile-avatar" class="user-profile-avatar">-</div>
+                    <div class="user-profile-details">
+                        <span id="user-profile-name" class="user-profile-name">Carregando...</span>
+                        <span id="user-profile-username" class="user-profile-username">@usuario</span>
+                    </div>
+                </div>
+                <button id="btn-logout" class="btn-logout">
+                    <span class="material-symbols-rounded">logout</span>
+                    Sair
+                </button>
+            </div>
+
+            <!-- Painel de Autenticação (Login e Cadastro) -->
+            <div id="panel-auth" class="setup-panel auth-panel">
+                <div class="auth-header">
+                    <h2 id="auth-title">Acesse sua Conta</h2>
+                    <p id="auth-subtitle">Entre para criar ou participar de salas de áudio.</p>
+                </div>
+                <div class="actions">
+                    <!-- Form de Login -->
+                    <div id="login-form-fields">
+                        <div class="input-wrapper">
+                            <span class="material-symbols-rounded input-icon">alternate_email</span>
+                            <input type="text" id="login-identifier-input" placeholder="Nome de usuário (@usuario)">
+                        </div>
+                        <div class="input-wrapper">
+                            <span class="material-symbols-rounded input-icon">vpn_key</span>
+                            <input type="password" id="login-password-input" placeholder="Sua senha">
+                        </div>
+                        <button id="btn-login-submit" class="btn btn-primary">Entrar</button>
+                    </div>
+
+                    <!-- Form de Cadastro (escondido por padrão) -->
+                    <div id="register-form-fields" style="display: none;">
+                        <div class="input-wrapper">
+                            <span class="material-symbols-rounded input-icon">alternate_email</span>
+                            <input type="text" id="register-username-input" placeholder="Nome de usuário (@usuario)">
+                        </div>
+                        <div class="input-wrapper">
+                            <span class="material-symbols-rounded input-icon">person</span>
+                            <input type="text" id="register-name-input" placeholder="Nome de exibição">
+                        </div>
+                        <div class="input-wrapper">
+                            <span class="material-symbols-rounded input-icon">vpn_key</span>
+                            <input type="password" id="register-password-input" placeholder="Senha (mín. 6 caract.)">
+                        </div>
+                        <button id="btn-register-submit" class="btn btn-primary">Criar Conta</button>
+                    </div>
+
+                    <div class="auth-toggle">
+                        <span id="auth-toggle-text">Não tem uma conta?</span>
+                        <a id="btn-toggle-auth">Cadastre-se</a>
+                    </div>
+                </div>
+            </div>
+
             <!-- Painel 1: Menu Principal -->
-            <div id="panel-main" class="setup-panel">
+            <div id="panel-main" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <button id="btn-go-create" class="btn btn-primary">
                         <span class="material-symbols-rounded">add_circle</span>
@@ -64,7 +126,7 @@
                         <span class="material-symbols-rounded input-icon">forum</span>
                         <input type="text" id="create-room-name-input" placeholder="Nome da sala (ex: Família, Reunião)" maxlength="30">
                     </div>
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" id="create-name-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="create-name-input" placeholder="Seu nome" maxlength="20">
                     </div>
@@ -114,7 +176,7 @@
             <div id="panel-join-name" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <p class="panel-info">Entrando em: <strong id="joining-room-name-display"></strong> <span style="font-size: 0.9em; opacity: 0.7;">(Código: <span id="joining-room-code-display"></span>)</span></p>
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" id="join-name-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="join-name-input" placeholder="Seu nome" maxlength="20">
                     </div>
@@ -134,7 +196,7 @@
             <div id="panel-link-join" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <p class="panel-info">Entrando em: <strong id="link-room-name-display"></strong> <span style="font-size: 0.9em; opacity: 0.7;">(Código: <span id="link-room-code-display"></span>)</span></p>
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" id="link-name-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="link-name-input" placeholder="Seu nome" maxlength="20">
                     </div>

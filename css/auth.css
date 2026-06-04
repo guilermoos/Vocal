@@ -1,0 +1,124 @@
+/* Auth Panels and Layout */
+.auth-panel {
+    width: 100%;
+    max-width: 420px;
+    margin: 1.5rem auto;
+    background: var(--surface);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-header h2 {
+    font-family: var(--font-title);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.auth-header p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* Toggle Link */
+.auth-toggle {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.auth-toggle a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    margin-left: 0.3rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.auth-toggle a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+
+/* User Profile Header Bar */
+.user-profile-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.user-profile-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.user-profile-avatar {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--primary), #a855f7);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--font-title);
+    font-weight: 600;
+    color: white;
+    font-size: 0.95rem;
+}
+
+.user-profile-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-profile-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.user-profile-username {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.btn-logout {
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.btn-logout:hover {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.btn-logout .material-symbols-rounded {
+    font-size: 1.1rem;
+}
