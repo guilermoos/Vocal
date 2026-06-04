@@ -57,13 +57,32 @@
                 </div>
             </div>
 
-            <!-- Painel 2: Criar Sala (Nome) -->
+            <!-- Painel 2: Criar Sala (Nome e Privacidade) -->
             <div id="panel-create" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <div class="input-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="create-name-input" placeholder="Seu nome" maxlength="20">
                     </div>
+                    
+                    <!-- Seletor de Privacidade da Sala -->
+                    <div class="privacy-selector">
+                        <button type="button" id="privacy-public-btn" class="privacy-tab active">
+                            <span class="material-symbols-rounded">public</span>
+                            Pública
+                        </button>
+                        <button type="button" id="privacy-private-btn" class="privacy-tab">
+                            <span class="material-symbols-rounded">lock</span>
+                            Privada
+                        </button>
+                    </div>
+
+                    <!-- Input de Senha (oculto por padrão) -->
+                    <div class="input-wrapper" id="create-password-wrapper" style="display: none;">
+                        <span class="material-symbols-rounded input-icon">vpn_key</span>
+                        <input type="password" id="create-password-input" placeholder="Senha da sala (mín. 4 caract.)" maxlength="20">
+                    </div>
+
                     <button id="create-room-btn" class="btn btn-primary" disabled>Criar Sala</button>
                     <button id="btn-back-to-main-from-create" class="btn btn-secondary">
                         <span class="material-symbols-rounded">arrow_back</span>
@@ -87,13 +106,17 @@
                 </div>
             </div>
 
-            <!-- Painel 4: Entrar com Código - Passo 2 (Nome) -->
+            <!-- Painel 4: Entrar com Código - Passo 2 (Nome e Senha) -->
             <div id="panel-join-name" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <p class="panel-info">Código da Sala: <strong id="joining-room-code-display"></strong></p>
                     <div class="input-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="join-name-input" placeholder="Seu nome" maxlength="20">
+                    </div>
+                    <div class="input-wrapper" id="join-password-wrapper" style="display: none;">
+                        <span class="material-symbols-rounded input-icon">vpn_key</span>
+                        <input type="password" id="join-password-input" placeholder="Senha da sala" maxlength="20">
                     </div>
                     <button id="join-room-btn" class="btn btn-primary" disabled>Entrar na Sala</button>
                     <button id="btn-back-to-code" class="btn btn-secondary">
@@ -103,13 +126,17 @@
                 </div>
             </div>
 
-            <!-- Painel 5: Entrar via Link (Nome) -->
+            <!-- Painel 5: Entrar via Link (Nome e Senha) -->
             <div id="panel-link-join" class="setup-panel" style="display: none;">
                 <div class="actions">
                     <p class="panel-info">Entrando na sala: <strong id="link-room-code-display"></strong></p>
                     <div class="input-wrapper">
                         <span class="material-symbols-rounded input-icon">person</span>
                         <input type="text" id="link-name-input" placeholder="Seu nome" maxlength="20">
+                    </div>
+                    <div class="input-wrapper" id="link-password-wrapper" style="display: none;">
+                        <span class="material-symbols-rounded input-icon">vpn_key</span>
+                        <input type="password" id="link-password-input" placeholder="Senha da sala" maxlength="20">
                     </div>
                     <button id="link-join-confirm-btn" class="btn btn-primary" disabled>Entrar na Sala</button>
                     <button id="btn-cancel-link-join" class="btn btn-secondary">

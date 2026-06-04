@@ -29,6 +29,14 @@ import {
     linkRoomCodeDisplay,
     shareLinkDisplay,
     copyShareLinkBtn,
+    privacyPublicBtn,
+    privacyPrivateBtn,
+    createPasswordWrapper,
+    createPasswordInput,
+    joinPasswordWrapper,
+    joinPasswordInput,
+    linkPasswordWrapper,
+    linkPasswordInput,
     
     // Functions
     showPanel,
@@ -48,7 +56,7 @@ import {
     cancelMediaBtn,
 } from './dom.js';
 import { generateRandomCode, setupClipboardCopy } from './utils.js';
-import { initializePeer, joinRoom, startMedia, endCall, sendChatMessage } from './peer-manager.js';
+import { createPeer, initializePeer, joinRoom, startMedia, endCall, sendChatMessage } from './peer-manager.js';
 
 // --- Media State ---
 let pendingMedia = null; // { dataUrl, mimeType }
@@ -178,13 +186,55 @@ if (mediaCameraInput) {
     });
 }
 
+// --- Validadores de Formulários ---
+
+function validateCreateForm() {
+    const name = createNameInput.value.trim();
+    const hasName = name.length > 0;
+    
+    if (state.roomType === 'public') {
+        createRoomBtn.disabled = !hasName;
+    } else {
+        const password = createPasswordInput.value;
+        const hasValidPassword = password.length >= 4;
+        createRoomBtn.disabled = !hasName || !hasValidPassword;
+    }
+}
+
+function validateJoinForm() {
+    const name = joinNameInput.value.trim();
+    const hasName = name.length > 0;
+    
+    const isPrivate = joinPasswordWrapper && joinPasswordWrapper.style.display === 'block';
+    if (isPrivate) {
+        const hasPassword = joinPasswordInput && joinPasswordInput.value.length > 0;
+        joinRoomBtn.disabled = !hasName || !hasPassword;
+    } else {
+        joinRoomBtn.disabled = !hasName;
+    }
+}
+
+function validateLinkForm() {
+    const name = linkNameInput.value.trim();
+    const hasName = name.length > 0;
+    
+    const isPrivate = linkPasswordWrapper && linkPasswordWrapper.style.display === 'block';
+    if (isPrivate) {
+        const hasPassword = linkPasswordInput && linkPasswordInput.value.length > 0;
+        linkJoinConfirmBtn.disabled = !hasName || !hasPassword;
+    } else {
+        linkJoinConfirmBtn.disabled = !hasName;
+    }
+}
+
 // --- Listeners de Input para Validar/Habilitar Botões ---
 
 if (createNameInput) {
-    createNameInput.addEventListener('input', () => {
-        const hasName = createNameInput.value.trim().length > 0;
-        createRoomBtn.disabled = !hasName;
-    });
+    createNameInput.addEventListener('input', validateCreateForm);
+}
+
+if (createPasswordInput) {
+    createPasswordInput.addEventListener('input', validateCreateForm);
 }
 
 if (roomCodeInput) {
@@ -196,16 +246,44 @@ if (roomCodeInput) {
 }
 
 if (joinNameInput) {
-    joinNameInput.addEventListener('input', () => {
-        const hasName = joinNameInput.value.trim().length > 0;
-        joinRoomBtn.disabled = !hasName;
-    });
+    joinNameInput.addEventListener('input', validateJoinForm);
+}
+
+if (joinPasswordInput) {
+    joinPasswordInput.addEventListener('input', validateJoinForm);
 }
 
 if (linkNameInput) {
-    linkNameInput.addEventListener('input', () => {
-        const hasName = linkNameInput.value.trim().length > 0;
-        linkJoinConfirmBtn.disabled = !hasName;
+    linkNameInput.addEventListener('input', validateLinkForm);
+}
+
+if (linkPasswordInput) {
+    linkPasswordInput.addEventListener('input', validateLinkForm);
+}
+
+// --- Listeners de Configuração de Privacidade ---
+
+if (privacyPublicBtn) {
+    privacyPublicBtn.addEventListener('click', () => {
+        state.roomType = 'public';
+        privacyPublicBtn.classList.add('active');
+        if (privacyPrivateBtn) privacyPrivateBtn.classList.remove('active');
+        if (createPasswordWrapper) createPasswordWrapper.style.display = 'none';
+        if (createPasswordInput) createPasswordInput.value = '';
+        validateCreateForm();
+    });
+}
+
+if (privacyPrivateBtn) {
+    privacyPrivateBtn.addEventListener('click', () => {
+        state.roomType = 'private';
+        privacyPrivateBtn.classList.add('active');
+        if (privacyPublicBtn) privacyPublicBtn.classList.remove('active');
+        if (createPasswordWrapper) {
+            createPasswordWrapper.style.display = 'block';
+            if (createPasswordInput) createPasswordInput.focus();
+        }
+        validateCreateForm();
     });
 }
 
@@ -214,6 +292,11 @@ if (linkNameInput) {
 if (btnGoCreate) {
     btnGoCreate.addEventListener('click', () => {
         createNameInput.value = '';
+        if (createPasswordInput) createPasswordInput.value = '';
+        state.roomType = 'public';
+        if (privacyPublicBtn) privacyPublicBtn.classList.add('active');
+        if (privacyPrivateBtn) privacyPrivateBtn.classList.remove('active');
+        if (createPasswordWrapper) createPasswordWrapper.style.display = 'none';
         createRoomBtn.disabled = true;
         showPanel(panelCreate);
         createNameInput.focus();
@@ -243,12 +326,72 @@ if (btnBackToMainFromJoin) {
 
 if (joinCodeNextBtn) {
     joinCodeNextBtn.addEventListener('click', () => {
-        state.targetRoomCode = roomCodeInput.value.trim();
-        joiningRoomCodeDisplay.innerText = state.targetRoomCode;
-        joinNameInput.value = '';
-        joinRoomBtn.disabled = true;
-        showPanel(panelJoinName);
-        joinNameInput.focus();
+        errorMessage.innerText = '';
+        const roomCode = roomCodeInput.value.trim();
+        joinCodeNextBtn.disabled = true;
+        
+        // P2P: Criamos um peer temporário para interrogar o Host da sala
+        const tempPeer = createPeer(null);
+        if (!tempPeer) {
+            errorMessage.innerText = 'Erro ao instanciar conexão temporária.';
+            joinCodeNextBtn.disabled = false;
+            return;
+        }
+
+        const cleanup = () => {
+            try { tempPeer.disconnect(); tempPeer.destroy(); } catch(e) {}
+            joinCodeNextBtn.disabled = false;
+        };
+
+        const timeoutId = setTimeout(() => {
+            errorMessage.innerText = 'Sala não encontrada ou vazia.';
+            cleanup();
+        }, 6000);
+
+        tempPeer.on('open', () => {
+            console.log('TempPeer: Conectando ao código P2P:', roomCode);
+            const conn = tempPeer.connect(roomCode);
+            
+            conn.on('open', () => {
+                clearTimeout(timeoutId);
+                conn.send({ type: 'query_privacy' });
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'privacy_response') {
+                    clearTimeout(timeoutId);
+                    state.targetRoomCode = roomCode;
+                    joiningRoomCodeDisplay.innerText = roomCode;
+                    joinNameInput.value = '';
+                    if (joinPasswordInput) joinPasswordInput.value = '';
+                    
+                    if (data.roomType === 'private') {
+                        if (joinPasswordWrapper) joinPasswordWrapper.style.display = 'block';
+                    } else {
+                        if (joinPasswordWrapper) joinPasswordWrapper.style.display = 'none';
+                    }
+                    
+                    joinRoomBtn.disabled = true;
+                    showPanel(panelJoinName);
+                    joinNameInput.focus();
+                    cleanup();
+                }
+            });
+
+            conn.on('error', (err) => {
+                clearTimeout(timeoutId);
+                console.error('TempPeer: Erro na conexão:', err);
+                errorMessage.innerText = 'Sala não encontrada ou vazia.';
+                cleanup();
+            });
+        });
+
+        tempPeer.on('error', (err) => {
+            clearTimeout(timeoutId);
+            console.error('TempPeer: Erro no peer:', err);
+            errorMessage.innerText = 'Sala não encontrada ou vazia.';
+            cleanup();
+        });
     });
 }
 
@@ -270,24 +413,33 @@ if (btnCancelLinkJoin) {
 createRoomBtn.addEventListener('click', async () => {
     errorMessage.innerText = '';
     state.localName = createNameInput.value.trim();
+    state.roomPassword = createPasswordInput ? createPasswordInput.value : '';
     if (!state.localName) return;
+    
+    createRoomBtn.disabled = true;
     try {
         await startMedia();
+        // P2P pura: geramos o código numérico de 5 dígitos no próprio cliente
         const roomCode = generateRandomCode();
+        // Inicializamos o PeerJS utilizando o código da sala como o Peer ID
         initializePeer(roomCode);
     } catch (error) {
         console.error("Erro ao criar sala:", error);
+        errorMessage.innerText = 'Falha no acesso de mídia.';
+        createRoomBtn.disabled = false;
     }
 });
 
 joinRoomBtn.addEventListener('click', () => {
     const name = joinNameInput.value.trim();
-    joinRoom(state.targetRoomCode, name);
+    const password = joinPasswordInput ? joinPasswordInput.value : '';
+    joinRoom(state.targetRoomCode, name, password);
 });
 
 linkJoinConfirmBtn.addEventListener('click', () => {
     const name = linkNameInput.value.trim();
-    joinRoom(state.targetRoomCode, name);
+    const password = linkPasswordInput ? linkPasswordInput.value : '';
+    joinRoom(state.targetRoomCode, name, password);
 });
 
 hangUpBtn.addEventListener('click', endCall);
@@ -313,14 +465,67 @@ const urlParams = new URLSearchParams(window.location.search);
 const urlRoom = urlParams.get('room');
 
 if (urlRoom && /^\d{5}$/.test(urlRoom)) {
-    state.targetRoomCode = urlRoom;
-    if (linkRoomCodeDisplay) {
-        linkRoomCodeDisplay.innerText = urlRoom;
-    }
-    showPanel(panelLinkJoin);
-    if (linkNameInput) {
-        setTimeout(() => linkNameInput.focus(), 100);
-    }
+    const checkUrlRoomP2P = () => {
+        const tempPeer = createPeer(null);
+        
+        const cleanup = () => {
+            try { tempPeer.disconnect(); tempPeer.destroy(); } catch(e) {}
+        };
+
+        const timeoutId = setTimeout(() => {
+            errorMessage.innerText = 'A sala deste link não foi encontrada ou está vazia.';
+            showPanel(panelMain);
+            cleanup();
+        }, 6000);
+
+        tempPeer.on('open', () => {
+            console.log('TempPeer: Conectando via link ao código P2P:', urlRoom);
+            const conn = tempPeer.connect(urlRoom);
+            
+            conn.on('open', () => {
+                clearTimeout(timeoutId);
+                conn.send({ type: 'query_privacy' });
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'privacy_response') {
+                    clearTimeout(timeoutId);
+                    state.targetRoomCode = urlRoom;
+                    if (linkRoomCodeDisplay) {
+                        linkRoomCodeDisplay.innerText = urlRoom;
+                    }
+                    if (data.roomType === 'private') {
+                        if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'block';
+                    } else {
+                        if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'none';
+                    }
+                    linkNameInput.value = '';
+                    if (linkPasswordInput) linkPasswordInput.value = '';
+                    linkJoinConfirmBtn.disabled = true;
+                    showPanel(panelLinkJoin);
+                    if (linkNameInput) {
+                        setTimeout(() => linkNameInput.focus(), 100);
+                    }
+                    cleanup();
+                }
+            });
+
+            conn.on('error', (err) => {
+                clearTimeout(timeoutId);
+                errorMessage.innerText = 'A sala deste link não foi encontrada ou está vazia.';
+                showPanel(panelMain);
+                cleanup();
+            });
+        });
+
+        tempPeer.on('error', (err) => {
+            clearTimeout(timeoutId);
+            errorMessage.innerText = 'A sala deste link não foi encontrada ou está vazia.';
+            showPanel(panelMain);
+            cleanup();
+        });
+    };
+    checkUrlRoomP2P();
 } else {
     showPanel(panelMain);
 }

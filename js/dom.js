@@ -27,6 +27,14 @@ export const panelLinkJoin = document.getElementById('panel-link-join');
 export const createNameInput = document.getElementById('create-name-input');
 export const joinNameInput = document.getElementById('join-name-input');
 export const linkNameInput = document.getElementById('link-name-input');
+export const privacyPublicBtn = document.getElementById('privacy-public-btn');
+export const privacyPrivateBtn = document.getElementById('privacy-private-btn');
+export const createPasswordWrapper = document.getElementById('create-password-wrapper');
+export const createPasswordInput = document.getElementById('create-password-input');
+export const joinPasswordWrapper = document.getElementById('join-password-wrapper');
+export const joinPasswordInput = document.getElementById('join-password-input');
+export const linkPasswordWrapper = document.getElementById('link-password-wrapper');
+export const linkPasswordInput = document.getElementById('link-password-input');
 
 // Wizard Buttons
 export const btnGoCreate = document.getElementById('btn-go-create');
@@ -154,6 +162,20 @@ export function showSetupView() {
     if (joinNameInput) joinNameInput.value = '';
     if (roomCodeInput) roomCodeInput.value = '';
     if (linkNameInput) linkNameInput.value = '';
+    if (createPasswordInput) createPasswordInput.value = '';
+    if (joinPasswordInput) joinPasswordInput.value = '';
+    if (linkPasswordInput) linkPasswordInput.value = '';
+    
+    if (createPasswordWrapper) createPasswordWrapper.style.display = 'none';
+    if (joinPasswordWrapper) joinPasswordWrapper.style.display = 'none';
+    if (linkPasswordWrapper) linkPasswordWrapper.style.display = 'none';
+    
+    if (privacyPublicBtn) privacyPublicBtn.classList.add('active');
+    if (privacyPrivateBtn) privacyPrivateBtn.classList.remove('active');
+    
+    state.roomType = 'public';
+    state.roomPassword = '';
+    state.voluntaryLeave = false;
     
     createRoomBtn.disabled = true;
     joinRoomBtn.disabled = true;
